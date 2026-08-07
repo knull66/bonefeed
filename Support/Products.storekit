@@ -1,0 +1,50 @@
+{
+  "identifier" : "Bonefeed",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "A1B2C3D4E5F60718",
+      "localizations" : [
+        {
+          "description" : "Unlock Binance Spot & Earn, unlimited wallets, all themes, and portfolio PnL.",
+          "displayName" : "Bonefeed Pro",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "Desbloquea Binance Spot y Earn, wallets ilimitadas, todos los temas y PnL.",
+          "displayName" : "Bonefeed Pro",
+          "locale" : "es_ES"
+        }
+      ],
+      "productID" : "app.bonefeed.macos.pro",
+      "referenceName" : "Bonefeed Pro",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
