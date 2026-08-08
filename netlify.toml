@@ -1,5 +1,8 @@
+# Static landing only — ignore Swift Package.swift at repo root.
 [build]
-  publish = "Web"
+  base = "Web"
+  publish = "."
+  command = "true"
 
 [[headers]]
   for = "/*"
