@@ -24,8 +24,8 @@
       <span>BONEFEED</span>
     </a>
     <nav>
-      <a href="#p2p">P2P</a>
-      <a href="#how">How</a>
+      <a href="#notch">Notch</a>
+      <a href="#how">Panel</a>
       <a href="#pro">Pro</a>
       <a href="#privacy">Privacy</a>
       <a class="nav-cta" href="#download">Download</a>
@@ -35,83 +35,105 @@
   <main>
     <section class="hero">
       <div class="hero-copy">
-        <img class="hero-logo" src="assets/logo.png" alt="Bonefeed" width="120" height="120" />
         <p class="eyebrow">macOS · notch · watch-only</p>
         <h1 class="brand-hero" data-text="BONEFEED">BONEFEED</h1>
-        <p class="headline">Notch radar for crypto</p>
         <p class="lede">
-          Balances, deposits, Earn unlocks, P2P order timers, and market pulses — live in your Mac notch.
+          Balances, deposits, Earn unlocks, and P2P timers — live in your Mac notch.
           It watches. It never trades.
         </p>
         <div class="cta-row">
           <a class="btn primary" href="#download">Download for Mac</a>
-          <a class="btn ghost" href="#pro">See Pro</a>
+          <a class="btn ghost" href="#notch">See the notch</a>
         </div>
       </div>
 
-      <div class="hero-stage" aria-hidden="true">
-        <div class="notch-mock notch-mock--p2p">
-          <div class="notch-pill">
-            <img class="notch-mark" src="assets/logo.png" alt="" width="14" height="14" />
-            <div class="ticker">
-              <span>ETH $1923 <em>+0.44%</em></span>
-              <span>SOL $76.27 <em>+3.75%</em></span>
-              <span>BTC $65.1k <em>+0.2%</em></span>
-              <span>PORT $130 <em>+0.0%</em></span>
-            </div>
-          </div>
-          <div class="notch-p2p-dock">
-            <span class="dock-p2p">P2P</span>
-            <span class="dock-sell">SELL</span>
-            <span class="dock-amt">9.39 USDT</span>
-            <span class="dock-timer"><span class="dock-clock" aria-hidden="true"></span><span class="dock-time">3:57</span></span>
-          </div>
-          <div class="notch-peek notch-peek--card">
-            <div class="p2p-card-mock">
-              <div class="p2p-card-top">
-                <span class="sell">Sell</span>
-                <span>9.39 USDT</span>
-                <span class="spacer"></span>
-                <span class="muted">#SIM…</span>
-              </div>
-              <p class="p2p-card-status">Pending buyer's payment…</p>
-              <div class="p2p-stepper">
-                <span class="node on">$</span>
-                <span class="rail"></span>
-                <span class="node"></span>
-                <span class="rail"></span>
-                <span class="node"></span>
-              </div>
-              <div class="p2p-card-foot">
-                <strong>Bs 8000 VES</strong>
-                <span class="dock-timer"><span class="dock-clock"></span>3:57</span>
-              </div>
-            </div>
-          </div>
+      <div class="hero-stage" id="notch" aria-label="Bonefeed notch preview">
+        <div class="mac-bar" aria-hidden="true">
+          <span class="mac-left">Finder File Edit View</span>
+          <span class="mac-right">Wi-Fi · 100% · Fri 3:18</span>
         </div>
-        <p class="stage-caption">P2P timer dock · click to open status · hover for full card</p>
-      </div>
-    </section>
 
-    <section class="product-shot" id="p2p">
-      <div class="product-shot-copy">
-        <p class="eyebrow">P2P · Live dock</p>
-        <h2>Order timer that stays in the notch</h2>
-        <p>
-          When a Binance P2P trade is open, Bonefeed keeps a slim dock with the countdown —
-          like the Binance floating card, but in your Mac menu bar. Click it to jump straight to the live order panel.
-        </p>
+        <div class="notch-slider" data-notch-slider>
+          <div class="notch-viewport">
+            <div class="notch-track">
+              <div class="notch-slide is-active" data-slide="ticker">
+                <div class="notch-mock">
+                  <div class="notch-pill">
+                    <img class="notch-mark" src="assets/logo.png" alt="" width="14" height="14" />
+                    <div class="ticker">
+                      <span>ETH $1923 <em>+0.44%</em></span>
+                      <span>SOL $76.27 <em>+3.75%</em></span>
+                      <span>BTC $65.1k <em>+0.2%</em></span>
+                      <span>PORT $130 <em>+0.0%</em></span>
+                    </div>
+                  </div>
+                  <div class="notch-peek">
+                    <div class="peek-row"><span>PORT</span><span>$130.42</span><span class="up">+0.0%</span></div>
+                    <div class="peek-row"><span>BTC</span><span>$65,120</span><span class="up">+0.2%</span></div>
+                    <div class="peek-row"><span>ETH</span><span>$1,923</span><span class="up">+0.4%</span></div>
+                    <p class="peek-hint">Hover the notch · peek markets</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="notch-slide" data-slide="p2p">
+                <div class="notch-mock notch-mock--p2p">
+                  <div class="notch-pill notch-pill--slim">
+                    <img class="notch-mark" src="assets/logo.png" alt="" width="14" height="14" />
+                    <div class="ticker">
+                      <span>ETH $1923 <em>+0.44%</em></span>
+                      <span>SOL $76.27 <em>+3.75%</em></span>
+                      <span>BTC $65.1k <em>+0.2%</em></span>
+                    </div>
+                  </div>
+                  <div class="notch-p2p-dock">
+                    <span class="dock-p2p">P2P</span>
+                    <span class="dock-sell">SELL</span>
+                    <span class="dock-amt">9.39 USDT</span>
+                    <span class="dock-timer"><span class="dock-clock" aria-hidden="true"></span><span class="dock-time" data-countdown>3:57</span></span>
+                  </div>
+                  <div class="notch-peek notch-peek--card">
+                    <div class="p2p-card-mock">
+                      <div class="p2p-card-top">
+                        <span class="sell">Sell</span>
+                        <span>9.39 USDT</span>
+                        <span class="spacer"></span>
+                        <span class="muted">#LIVE</span>
+                      </div>
+                      <p class="p2p-card-status">Pending buyer&apos;s payment…</p>
+                      <div class="p2p-stepper">
+                        <span class="node on">$</span>
+                        <span class="rail"></span>
+                        <span class="node"></span>
+                        <span class="rail"></span>
+                        <span class="node"></span>
+                      </div>
+                      <div class="p2p-card-foot">
+                        <strong>Bs 8000 VES</strong>
+                        <span class="dock-timer"><span class="dock-clock"></span><span data-countdown>3:57</span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="notch-controls" role="tablist" aria-label="Notch modes">
+            <button type="button" class="notch-tab is-active" role="tab" aria-selected="true" data-goto="0">
+              <span class="tab-kicker">01</span>
+              <span class="tab-title">Ticker</span>
+              <span class="tab-desc">Live prices in the menu bar</span>
+            </button>
+            <button type="button" class="notch-tab" role="tab" aria-selected="false" data-goto="1">
+              <span class="tab-kicker">02</span>
+              <span class="tab-title">P2P dock</span>
+              <span class="tab-desc">Order timer that stays put</span>
+            </button>
+          </div>
+          <p class="stage-caption" data-notch-caption>Scrolling markets · hover for a quick peek</p>
+        </div>
       </div>
-      <figure class="product-shot-frame">
-        <img
-          src="assets/shot-p2p-live.png"
-          alt="Bonefeed notch with P2P timer dock and dashboard live order card on BLVCK theme"
-          width="1200"
-          height="800"
-          loading="lazy"
-        />
-        <figcaption>BLVCK · live P2P dock + Radar status card</figcaption>
-      </figure>
     </section>
 
     <section class="panel-showcase" id="how">
@@ -149,7 +171,7 @@
                   <span class="spacer"></span>
                   <span class="demo">DEMO</span>
                 </div>
-                <p class="p2p-card-status">Pending buyer's payment…</p>
+                <p class="p2p-card-status">Pending buyer&apos;s payment…</p>
                 <div class="p2p-stepper">
                   <span class="node on">$</span>
                   <span class="rail"></span>
@@ -197,13 +219,13 @@
       </article>
       <article>
         <span class="code">02</span>
-        <h3>Binance Spot & Earn</h3>
+        <h3>Binance Spot &amp; Earn</h3>
         <p>Read-only API. Live deposits, liquid balances, Earn positions, rewards, unlock warnings.</p>
       </article>
       <article>
         <span class="code">03</span>
         <h3>P2P live dock</h3>
-        <p>Pro · watch-only. Alerts on NEW / PAID / RELEASE / DONE / CANCEL / APPEAL — then a persistent notch timer until the trade closes. Click to open status.</p>
+        <p>Pro · watch-only. Alerts on NEW / PAID / RELEASE / DONE — then a persistent notch timer until the trade closes. Click to open status.</p>
       </article>
       <article>
         <span class="code">04</span>
@@ -212,7 +234,7 @@
       </article>
       <article>
         <span class="code">05</span>
-        <h3>Signals & LOG</h3>
+        <h3>Signals &amp; LOG</h3>
         <p>Pump / dump, fee spikes, health factor. Everything lands in LOG with macOS notifications.</p>
       </article>
       <article>
@@ -246,8 +268,8 @@
         <p class="price">$14.99 <span>one-time*</span></p>
         <ul>
           <li>Binance Spot, Funding, deposits, stream</li>
-          <li>Earn + P2P order alerts (new / paid / done…)</li>
-          <li>Unlimited wallets & watchlist</li>
+          <li>Earn + P2P order alerts &amp; live dock</li>
+          <li>Unlimited wallets &amp; watchlist</li>
           <li>All themes · portfolio PnL</li>
         </ul>
         <a class="btn primary" href="#download">Get Bonefeed</a>
@@ -279,7 +301,7 @@
       </details>
       <details>
         <summary>Does P2P trading work in Bonefeed?</summary>
-        <p>No trading — watch-only. Pro polls your Binance P2P order history and notifies on status changes (new, paid, done, cancel, appeal). It never releases coins or chats for you.</p>
+        <p>No trading — watch-only. Pro polls your Binance P2P order history and notifies on status changes. The notch keeps a timer dock while an order is open. It never releases coins or chats for you.</p>
       </details>
       <details>
         <summary>macOS requirements?</summary>
@@ -289,7 +311,7 @@
 
     <section class="download" id="download">
       <h2>Put the market in your notch.</h2>
-      <p>Native Swift. Menu-bar only. Built for Apple Silicon & Intel.</p>
+      <p>Native Swift. Menu-bar only. Built for Apple Silicon &amp; Intel.</p>
       <a class="btn primary lg" href="#download">Download Bonefeed</a>
       <p class="fine">DMG / App Store link coming soon · testers: <code>./Scripts/package-app.sh</code> → ~/Applications</p>
     </section>

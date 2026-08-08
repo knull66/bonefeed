@@ -1,16 +1,67 @@
 (() => {
-  const brand = document.querySelector(".brand-hero");
-  const primary = document.querySelector(".btn.primary");
-  if (brand && primary) {
-    primary.addEventListener("mouseenter", () => {
-      brand.classList.add("pulse");
-      brand.style.setProperty("--glitch", "1");
-    });
-  }
-
   document.querySelectorAll(".ticker").forEach((el) => {
     el.innerHTML = el.innerHTML + el.innerHTML;
   });
+
+  // Notch mode slider: Ticker <-> P2P dock
+  const notchRoot = document.querySelector("[data-notch-slider]");
+  if (notchRoot) {
+    const slides = [...notchRoot.querySelectorAll(".notch-slide")];
+    const tabs = [...notchRoot.querySelectorAll(".notch-tab")];
+    const caption = notchRoot.querySelector("[data-notch-caption]");
+    const captions = [
+      "Scrolling markets · hover for a quick peek",
+      "Open P2P order · timer stays in the notch",
+    ];
+    let index = 0;
+    let timer;
+
+    const go = (i) => {
+      index = (i + slides.length) % slides.length;
+      notchRoot.dataset.index = String(index);
+      slides.forEach((slide, si) => slide.classList.toggle("is-active", si === index));
+      tabs.forEach((tab, ti) => {
+        const on = ti === index;
+        tab.classList.toggle("is-active", on);
+        tab.setAttribute("aria-selected", on ? "true" : "false");
+      });
+      if (caption) caption.textContent = captions[index] || "";
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        go(Number(tab.dataset.goto || 0));
+        restart();
+      });
+    });
+
+    const restart = () => {
+      clearInterval(timer);
+      timer = setInterval(() => go(index + 1), 5200);
+    };
+
+    notchRoot.addEventListener("mouseenter", () => clearInterval(timer));
+    notchRoot.addEventListener("mouseleave", restart);
+    go(0);
+    restart();
+  }
+
+  // Demo countdown on P2P dock
+  const countdowns = document.querySelectorAll("[data-countdown]");
+  if (countdowns.length) {
+    let seconds = 3 * 60 + 57;
+    const tick = () => {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      const label = `${m}:${String(s).padStart(2, "0")}`;
+      countdowns.forEach((el) => {
+        el.textContent = label;
+      });
+      seconds = seconds > 0 ? seconds - 1 : 3 * 60 + 57;
+    };
+    tick();
+    setInterval(tick, 1000);
+  }
 
   const themes = [
     {
@@ -168,7 +219,7 @@
   const next = document.querySelector(".theme-nav.next");
   if (!chrome || !themeTitle || !themeBlurb || !dots || !prev || !next) return;
 
-  let index = 0;
+  let themeIndex = 0;
 
   themes.forEach((theme, i) => {
     const btn = document.createElement("button");
@@ -179,8 +230,8 @@
   });
 
   function applyTheme(i) {
-    index = (i + themes.length) % themes.length;
-    const theme = themes[index];
+    themeIndex = (i + themes.length) % themes.length;
+    const theme = themes[themeIndex];
     Object.entries(theme.vars).forEach(([key, value]) => {
       chrome.style.setProperty(key, value);
     });
@@ -189,19 +240,19 @@
     themeBlurb.textContent = theme.blurb;
     if (themeBadge) themeBadge.textContent = theme.title;
     dots.querySelectorAll("button").forEach((btn, di) => {
-      btn.classList.toggle("on", di === index);
+      btn.classList.toggle("on", di === themeIndex);
     });
   }
 
-  prev.addEventListener("click", () => applyTheme(index - 1));
-  next.addEventListener("click", () => applyTheme(index + 1));
+  prev.addEventListener("click", () => applyTheme(themeIndex - 1));
+  next.addEventListener("click", () => applyTheme(themeIndex + 1));
 
-  let autoTimer = setInterval(() => applyTheme(index + 1), 4200);
+  let autoTimer = setInterval(() => applyTheme(themeIndex + 1), 4200);
   const slider = document.querySelector(".theme-slider");
   const pause = () => clearInterval(autoTimer);
   const resume = () => {
     pause();
-    autoTimer = setInterval(() => applyTheme(index + 1), 4200);
+    autoTimer = setInterval(() => applyTheme(themeIndex + 1), 4200);
   };
   slider?.addEventListener("mouseenter", pause);
   slider?.addEventListener("mouseleave", resume);
