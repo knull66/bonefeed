@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bonefeed — Notch radar for crypto</title>
+  <meta name="description" content="Bonefeed watches Binance Spot, Earn, and P2P orders from your Mac notch. Live timer dock. Watch-only. No trade. No sign." />
+  <meta property="og:title" content="Bonefeed — Notch radar for crypto" />
+  <meta property="og:description" content="Live portfolio, deposits, Earn unlocks, P2P order timers, and market signals — in the menu-bar notch." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="assets/logo.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <div class="grid" aria-hidden="true"></div>
+
+  <header class="top">
+    <a class="brand-mark" href="#">
+      <img src="assets/logo.png" alt="Bonefeed" width="32" height="32" />
+      <span>BONEFEED</span>
+    </a>
+    <nav>
+      <a href="#p2p">P2P</a>
+      <a href="#how">How</a>
+      <a href="#pro">Pro</a>
+      <a href="#privacy">Privacy</a>
+      <a class="nav-cta" href="#download">Download</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-copy">
+        <img class="hero-logo" src="assets/logo.png" alt="Bonefeed" width="120" height="120" />
+        <p class="eyebrow">macOS · notch · watch-only</p>
+        <h1 class="brand-hero" data-text="BONEFEED">BONEFEED</h1>
+        <p class="headline">Notch radar for crypto</p>
+        <p class="lede">
+          Balances, deposits, Earn unlocks, P2P order timers, and market pulses — live in your Mac notch.
+          It watches. It never trades.
+        </p>
+        <div class="cta-row">
+          <a class="btn primary" href="#download">Download for Mac</a>
+          <a class="btn ghost" href="#pro">See Pro</a>
+        </div>
+      </div>
+
+      <div class="hero-stage" aria-hidden="true">
+        <div class="notch-mock notch-mock--p2p">
+          <div class="notch-pill">
+            <img class="notch-mark" src="assets/logo.png" alt="" width="14" height="14" />
+            <div class="ticker">
+              <span>ETH $1923 <em>+0.44%</em></span>
+              <span>SOL $76.27 <em>+3.75%</em></span>
+              <span>BTC $65.1k <em>+0.2%</em></span>
+              <span>PORT $130 <em>+0.0%</em></span>
+            </div>
+          </div>
+          <div class="notch-p2p-dock">
+            <span class="dock-p2p">P2P</span>
+            <span class="dock-sell">SELL</span>
+            <span class="dock-amt">9.39 USDT</span>
+            <span class="dock-timer"><span class="dock-clock" aria-hidden="true"></span><span class="dock-time">3:57</span></span>
+          </div>
+          <div class="notch-peek notch-peek--card">
+            <div class="p2p-card-mock">
+              <div class="p2p-card-top">
+                <span class="sell">Sell</span>
+                <span>9.39 USDT</span>
+                <span class="spacer"></span>
+                <span class="muted">#SIM…</span>
+              </div>
+              <p class="p2p-card-status">Pending buyer's payment…</p>
+              <div class="p2p-stepper">
+                <span class="node on">$</span>
+                <span class="rail"></span>
+                <span class="node"></span>
+                <span class="rail"></span>
+                <span class="node"></span>
+              </div>
+              <div class="p2p-card-foot">
+                <strong>Bs 8000 VES</strong>
+                <span class="dock-timer"><span class="dock-clock"></span>3:57</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="stage-caption">P2P timer dock · click to open status · hover for full card</p>
+      </div>
+    </section>
+
+    <section class="product-shot" id="p2p">
+      <div class="product-shot-copy">
+        <p class="eyebrow">P2P · Live dock</p>
+        <h2>Order timer that stays in the notch</h2>
+        <p>
+          When a Binance P2P trade is open, Bonefeed keeps a slim dock with the countdown —
+          like the Binance floating card, but in your Mac menu bar. Click it to jump straight to the live order panel.
+        </p>
+      </div>
+      <figure class="product-shot-frame">
+        <img
+          src="assets/shot-p2p-live.png"
+          alt="Bonefeed notch with P2P timer dock and dashboard live order card on BLVCK theme"
+          width="1200"
+          height="800"
+          loading="lazy"
+        />
+        <figcaption>BLVCK · live P2P dock + Radar status card</figcaption>
+      </figure>
+    </section>
+
+    <section class="panel-showcase" id="how">
+      <div class="panel-showcase-copy">
+        <p class="eyebrow">Panel · Themes</p>
+        <h2>Full radar in one window</h2>
+        <p>Click the island for RADAR / SPOT / EARN / LOG — portfolio, markets, live P2P status, and the alert trail. Flip themes below to preview skins.</p>
+      </div>
+      <div class="panel-mock" aria-hidden="true">
+        <div class="panel-chrome">
+          <div class="panel-titlebar">
+            <img src="assets/logo.png" alt="" width="18" height="18" />
+            <span class="panel-name">BONEFEED</span>
+            <span class="panel-theme">BLVCK</span>
+            <span class="spacer"></span>
+            <span class="panel-live">▶ LIVE</span>
+          </div>
+          <div class="panel-tabs">
+            <span class="on">RADAR</span>
+            <span>SPOT</span>
+            <span>EARN</span>
+            <span>LOG</span>
+          </div>
+          <div class="panel-subtabs">
+            <span>OVERVIEW</span>
+            <span class="on">P2P <em>1</em></span>
+          </div>
+          <div class="panel-body">
+            <div class="panel-section">
+              <div class="sec-label">◆ LIVE ORDER</div>
+              <div class="p2p-card-mock panel-p2p-card">
+                <div class="p2p-card-top">
+                  <span class="sell">Sell</span>
+                  <span>9.39 USDT</span>
+                  <span class="spacer"></span>
+                  <span class="demo">DEMO</span>
+                </div>
+                <p class="p2p-card-status">Pending buyer's payment…</p>
+                <div class="p2p-stepper">
+                  <span class="node on">$</span>
+                  <span class="rail"></span>
+                  <span class="node"></span>
+                  <span class="rail"></span>
+                  <span class="node"></span>
+                </div>
+                <div class="p2p-card-foot">
+                  <strong>Bs 8000 VES</strong>
+                  <span class="dock-timer"><span class="dock-clock"></span>3:57</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel-section">
+              <div class="sec-label">◆ P2P ORDERS</div>
+              <div class="panel-row"><span class="tag warn">NEW</span><span>SELL 9.39 USDT</span><span class="up">LIVE</span></div>
+              <div class="panel-row"><span class="tag">DONE</span><span>SELL 50 USDT</span><span class="muted">—</span></div>
+            </div>
+          </div>
+          <div class="panel-footer">
+            <span>■ HALT</span>
+            <span>♪ SOUND ON</span>
+            <span class="spacer"></span>
+            <span>✕ QUIT</span>
+          </div>
+        </div>
+        <div class="theme-slider" id="themes">
+          <button type="button" class="theme-nav prev" aria-label="Previous theme">‹</button>
+          <div class="theme-meta">
+            <p class="theme-label">Theme</p>
+            <h3 class="theme-title">BLVCK</h3>
+            <p class="theme-blurb">Matte black, fashion-minimal</p>
+            <div class="theme-dots" role="tablist" aria-label="Themes"></div>
+          </div>
+          <button type="button" class="theme-nav next" aria-label="Next theme">›</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <article>
+        <span class="code">01</span>
+        <h3>Notch ticker</h3>
+        <p>Scrolling prices in the menu bar. Hover to peek PORT, top markets, and the latest alert.</p>
+      </article>
+      <article>
+        <span class="code">02</span>
+        <h3>Binance Spot & Earn</h3>
+        <p>Read-only API. Live deposits, liquid balances, Earn positions, rewards, unlock warnings.</p>
+      </article>
+      <article>
+        <span class="code">03</span>
+        <h3>P2P live dock</h3>
+        <p>Pro · watch-only. Alerts on NEW / PAID / RELEASE / DONE / CANCEL / APPEAL — then a persistent notch timer until the trade closes. Click to open status.</p>
+      </article>
+      <article>
+        <span class="code">04</span>
+        <h3>On-chain watch</h3>
+        <p>BTC · ETH / MetaMask · SOL. Balance + deposit alerts. Paste an address — never a seed.</p>
+      </article>
+      <article>
+        <span class="code">05</span>
+        <h3>Signals & LOG</h3>
+        <p>Pump / dump, fee spikes, health factor. Everything lands in LOG with macOS notifications.</p>
+      </article>
+      <article>
+        <span class="code">06</span>
+        <h3>Themes</h3>
+        <p>BLVCK, Binance, Cyber, Phosphor, Mac Dark/Light, and more. Skin the notch + panel to match your desk.</p>
+      </article>
+    </section>
+
+    <section class="promise">
+      <h2>Watch-only. No trade. No sign.</h2>
+      <p>
+        Bonefeed never withdraws, swaps, or signs. Use a Binance API key with
+        <strong>read-only</strong> permissions — never withdraw or trade.
+      </p>
+    </section>
+
+    <section class="pricing" id="pro">
+      <div class="plan free">
+        <h3>Free</h3>
+        <p class="price">$0</p>
+        <ul>
+          <li>Live notch ticker</li>
+          <li>Up to 3 watchlist coins</li>
+          <li>1 on-chain wallet</li>
+          <li>Themes: Cyber Dim + Mac Dark</li>
+        </ul>
+      </div>
+      <div class="plan pro">
+        <h3>Pro</h3>
+        <p class="price">$14.99 <span>one-time*</span></p>
+        <ul>
+          <li>Binance Spot, Funding, deposits, stream</li>
+          <li>Earn + P2P order alerts (new / paid / done…)</li>
+          <li>Unlimited wallets & watchlist</li>
+          <li>All themes · portfolio PnL</li>
+        </ul>
+        <a class="btn primary" href="#download">Get Bonefeed</a>
+        <p class="fine">* via Mac App Store when live · early access unlock in app for testers</p>
+      </div>
+    </section>
+
+    <section class="privacy" id="privacy">
+      <h2>Fully local</h2>
+      <p>
+        API keys encrypted on this Mac. No Bonefeed cloud account. No analytics SDK.
+        Network calls go only to exchanges and public chain APIs you choose to use.
+      </p>
+    </section>
+
+    <section class="faq">
+      <h2>FAQ</h2>
+      <details>
+        <summary>Does Bonefeed trade for me?</summary>
+        <p>No. It is watch-only. It cannot place orders, withdraw, or sign transactions.</p>
+      </details>
+      <details>
+        <summary>Is my Binance key safe?</summary>
+        <p>Stored encrypted locally (AES-GCM + Keychain wrap). Create a read-only key with no withdraw permissions.</p>
+      </details>
+      <details>
+        <summary>Can I watch MetaMask?</summary>
+        <p>Yes — paste your ETH account address (0x…). Bonefeed never connects to the extension or asks for a seed.</p>
+      </details>
+      <details>
+        <summary>Does P2P trading work in Bonefeed?</summary>
+        <p>No trading — watch-only. Pro polls your Binance P2P order history and notifies on status changes (new, paid, done, cancel, appeal). It never releases coins or chats for you.</p>
+      </details>
+      <details>
+        <summary>macOS requirements?</summary>
+        <p>macOS 14 Sonoma or later. Looks best on a MacBook with a notch; works as a top-center island elsewhere.</p>
+      </details>
+    </section>
+
+    <section class="download" id="download">
+      <h2>Put the market in your notch.</h2>
+      <p>Native Swift. Menu-bar only. Built for Apple Silicon & Intel.</p>
+      <a class="btn primary lg" href="#download">Download Bonefeed</a>
+      <p class="fine">DMG / App Store link coming soon · testers: <code>./Scripts/package-app.sh</code> → ~/Applications</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-brand">
+      <span>BONEFEED</span>
+      <span>watch-only · no trade · no sign</span>
+    </div>
+    <a class="studio-credit" href="https://www.vibesdistrict.pro" target="_blank" rel="noopener noreferrer">
+      <img src="assets/vibes-district-vd.png" alt="" width="18" height="18" />
+      <span>Made by Vibes District</span>
+    </a>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
