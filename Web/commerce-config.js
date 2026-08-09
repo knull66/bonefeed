@@ -25,4 +25,3 @@ window.BONEFEED_COMMERCE = {
   downloadPendingLabel: "Download soon",
   checkoutPendingLabel: "Buy Pro · USDT",
 };
-``
