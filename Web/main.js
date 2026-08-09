@@ -1,5 +1,5 @@
 (() => {
-  // Boot splash — blinking logo + sarcastic crypto load lines
+  // Boot splash — one line at a time, slow enough to read
   const boot = document.getElementById("boot");
   if (boot) {
     const fill = boot.querySelector("[data-boot-fill]");
@@ -8,20 +8,14 @@
     const lines = [
       "Loading your bags…",
       "Checking if it's still early…",
-      "Syncing hopium levels…",
       "Asking Binance very politely…",
       "Watching charts so you don't have to…",
-      "Counting unread Discord signals…",
       "Warming up the notch…",
       "Not placing trades. Promise.",
-      "Decrypting FOMO…",
-      "Almost rich. Psych.",
       "Feeding the skull…",
     ];
+    const lineHoldMs = 1800;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let pct = 1;
-    let lineIndex = 0;
-    let lineTimer;
 
     const setLine = (text) => {
       if (!lineEl) return;
@@ -29,11 +23,16 @@
       window.setTimeout(() => {
         lineEl.textContent = text;
         lineEl.classList.remove("is-swap");
-      }, 160);
+      }, 180);
+    };
+
+    const setProgress = (pct) => {
+      const value = Math.max(1, Math.min(100, Math.round(pct)));
+      if (pctEl) pctEl.textContent = String(value);
+      if (fill) fill.style.width = `${value}%`;
     };
 
     const finish = () => {
-      window.clearInterval(lineTimer);
       boot.classList.add("is-done");
       boot.setAttribute("aria-busy", "false");
       document.body.classList.remove("is-booting");
@@ -41,30 +40,25 @@
     };
 
     if (reduce) {
-      if (pctEl) pctEl.textContent = "100";
-      if (fill) fill.style.width = "100%";
-      setLine("You're in.");
-      window.setTimeout(finish, 200);
+      setProgress(100);
+      setLine("Radar online.");
+      window.setTimeout(finish, 250);
     } else {
-      lineTimer = window.setInterval(() => {
-        lineIndex = (lineIndex + 1) % lines.length;
-        setLine(lines[lineIndex]);
-      }, 700);
-
-      const tick = () => {
-        const step = pct < 40 ? 1 : pct < 75 ? 2 : pct < 92 ? 1 : 3;
-        pct = Math.min(100, pct + step);
-        if (pctEl) pctEl.textContent = String(pct);
-        if (fill) fill.style.width = `${pct}%`;
-        if (pct >= 100) {
-          setLine("You're in.");
-          window.setTimeout(finish, 320);
+      let index = 0;
+      const showNext = () => {
+        if (index >= lines.length) {
+          setProgress(100);
+          setLine("Radar online.");
+          window.setTimeout(finish, 1100);
           return;
         }
-        const delay = pct < 30 ? 38 : pct < 70 ? 52 : pct < 90 ? 70 : 90;
-        window.setTimeout(tick, delay);
+        setLine(lines[index]);
+        setProgress(((index + 1) / (lines.length + 1)) * 100);
+        index += 1;
+        window.setTimeout(showNext, lineHoldMs);
       };
-      tick();
+      setProgress(1);
+      showNext();
     }
   }
 
@@ -79,8 +73,8 @@
     const tabs = [...notchRoot.querySelectorAll(".notch-tab")];
     const caption = notchRoot.querySelector("[data-notch-caption]");
     const captions = [
-      "Scrolling markets · hover for a quick peek",
-      "Open P2P order · timer stays in the notch",
+      "Prices in the notch · hover for a quick peek",
+      "Open P2P · timer stays so you don't miss it",
     ];
     let index = 0;
     let timer;
