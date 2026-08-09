@@ -11,6 +11,7 @@ enum RadarCode {
     static let unlock = "UNLOCK"
     static let signal = "SIGNAL"
     static let health = "HEALTH"
+    static let p2p = "P2P"
     static let error = "ERROR"
 
     static let calmCodes: Set<String> = [

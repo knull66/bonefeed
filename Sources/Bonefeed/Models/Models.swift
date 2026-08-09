@@ -242,6 +242,7 @@ struct IslandAlert: Identifiable, Codable, Sendable, Equatable {
         case whale
         case deposit
         case earn
+        case p2p
 
         var symbol: String {
             switch self {
@@ -251,8 +252,34 @@ struct IslandAlert: Identifiable, Codable, Sendable, Equatable {
             case .whale: "water.waves"
             case .deposit: "arrow.down.circle.fill"
             case .earn: "leaf.fill"
+            case .p2p: "arrow.left.arrow.right.circle.fill"
             }
         }
+    }
+}
+
+/// Fiat filter for P2P alerts. Empty rawValue = Auto (all fiats).
+enum P2PFiatOption: String, CaseIterable, Identifiable, Codable, Sendable {
+    case auto = ""
+    case usd = "USD"
+    case eur = "EUR"
+    case cop = "COP"
+    case mxn = "MXN"
+    case brl = "BRL"
+    case ars = "ARS"
+    case ves = "VES"
+    case pen = "PEN"
+    case clp = "CLP"
+    case cny = "CNY"
+
+    var id: String { rawValue.isEmpty ? "auto" : rawValue }
+
+    var label: String {
+        rawValue.isEmpty ? "Auto" : rawValue
+    }
+
+    static func fromStored(_ raw: String) -> P2PFiatOption {
+        P2PFiatOption(rawValue: raw.uppercased()) ?? .auto
     }
 }
 
@@ -287,9 +314,16 @@ struct MarketSnapshot: Codable, Sendable, Equatable {
     var activeSignals: [MarketSignal]
     var marketTicks: [AssetTick]
     var userStreamLive: Bool
+    /// Open + recent P2P orders for panel (Pro).
+    var p2pOrders: [BinanceP2POrder]
+    var p2pStatus: String?
 
     var binanceHoldingsCount: Int {
         binanceLiquidHoldings.count + earnPositions.count
+    }
+
+    var openP2POrders: [BinanceP2POrder] {
+        p2pOrders.filter(\.isOpen)
     }
 }
 
@@ -307,6 +341,10 @@ struct AlertThresholds: Codable, Sendable, Equatable {
     var quietHoursEnd: Int
     var healthAlertsEnabled: Bool
     var healthFactorWarn: Double
+    /// Pro: watch Binance P2P / C2C order status changes.
+    var p2pAlertsEnabled: Bool
+    /// Empty = Auto (all fiats). Otherwise ISO fiat code e.g. COP.
+    var p2pFiat: String
 
     static let `default` = AlertThresholds(
         feeHigh: 40,
@@ -320,7 +358,9 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         quietHoursStart: 23,
         quietHoursEnd: 8,
         healthAlertsEnabled: true,
-        healthFactorWarn: 1.5
+        healthFactorWarn: 1.5,
+        p2pAlertsEnabled: true,
+        p2pFiat: ""
     )
 
     init(
@@ -335,7 +375,9 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         quietHoursStart: Int,
         quietHoursEnd: Int,
         healthAlertsEnabled: Bool,
-        healthFactorWarn: Double
+        healthFactorWarn: Double,
+        p2pAlertsEnabled: Bool = true,
+        p2pFiat: String = ""
     ) {
         self.feeHigh = feeHigh
         self.pnlDropPercent = pnlDropPercent
@@ -349,6 +391,8 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         self.quietHoursEnd = quietHoursEnd
         self.healthAlertsEnabled = healthAlertsEnabled
         self.healthFactorWarn = healthFactorWarn
+        self.p2pAlertsEnabled = p2pAlertsEnabled
+        self.p2pFiat = p2pFiat
     }
 
     init(from decoder: Decoder) throws {
@@ -365,6 +409,8 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         quietHoursEnd = try c.decodeIfPresent(Int.self, forKey: .quietHoursEnd) ?? Self.default.quietHoursEnd
         healthAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .healthAlertsEnabled) ?? Self.default.healthAlertsEnabled
         healthFactorWarn = try c.decodeIfPresent(Double.self, forKey: .healthFactorWarn) ?? Self.default.healthFactorWarn
+        p2pAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .p2pAlertsEnabled) ?? Self.default.p2pAlertsEnabled
+        p2pFiat = try c.decodeIfPresent(String.self, forKey: .p2pFiat) ?? Self.default.p2pFiat
     }
 
     func allowsSignal(for symbol: String) -> Bool {

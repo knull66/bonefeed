@@ -805,7 +805,9 @@ actor BitcoinMarketService {
             fundingStatus: nil,
             activeSignals: signals,
             marketTicks: ticks,
-            userStreamLive: false
+            userStreamLive: false,
+            p2pOrders: [],
+            p2pStatus: nil
         )
     }
 }

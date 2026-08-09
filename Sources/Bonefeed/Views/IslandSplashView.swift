@@ -116,6 +116,7 @@ struct IslandSplashView: View {
 enum AppLogoImage {
     @MainActor
     static func load() -> NSImage? {
+        // Colorful brand mark for notch / panel / splash (menu bar uses AppIconWhite separately).
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
            let img = NSImage(contentsOf: url) {
             return img
@@ -125,5 +126,16 @@ enum AppLogoImage {
             return img
         }
         return NSApp.applicationIconImage
+    }
+}
+
+enum StudioLogoImage {
+    @MainActor
+    static func load() -> NSImage? {
+        if let url = Bundle.main.url(forResource: "vibes-district-vd", withExtension: "png"),
+           let img = NSImage(contentsOf: url) {
+            return img
+        }
+        return nil
     }
 }

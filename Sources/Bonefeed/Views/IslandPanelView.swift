@@ -21,11 +21,10 @@ struct IslandPanelView: View {
                 .allowsHitTesting(false)
 
             VStack(spacing: 0) {
-                header
+                topBar
                 if let banner = store.bannerAlert {
                     RetroBanner(alert: banner)
                 }
-                NeonRule()
                 tabBar
                 NeonRule(cyan: true)
 
@@ -58,9 +57,11 @@ struct IslandPanelView: View {
         }
         .frame(minWidth: 380, minHeight: 520)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .environment(\.chainPalette, p)
         .preferredColorScheme(store.appTheme.colorScheme)
+        .onChange(of: store.appTheme) { _, _ in
+            IslandUIController.shared.syncPanelBackground()
+        }
         .onAppear {
             lastToken = store.panelOpenToken
             if store.skipNextSplash {
@@ -82,50 +83,57 @@ struct IslandPanelView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
-            if let logo = AppLogoImage.load() {
-                Image(nsImage: logo)
-                    .resizable()
-                    .interpolation(.none)
-                    .frame(width: 22, height: 22)
-                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+    /// In-content top bar — plain text/icons, no toolbar glass pill.
+    private var topBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 7) {
+                if let logo = AppLogoImage.load() {
+                    Image(nsImage: logo)
+                        .resizable()
+                        .interpolation(.none)
+                        .frame(width: 16, height: 16)
+                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                }
+                Text(Brand.nameUpper)
+                    .font(IslandTheme.monoTitle)
+                    .foregroundStyle(p.accent)
+                    .tracking(1.2)
+                Text(store.appTheme.title)
+                    .font(IslandTheme.monoSmall)
+                    .foregroundStyle(p.cool.opacity(0.9))
             }
 
-            Text(Brand.nameUpper)
-                .font(IslandTheme.monoTitle)
-                .foregroundStyle(p.accent)
-                .tracking(1.5)
+            Spacer(minLength: 8)
 
-            Text(store.appTheme.title)
-                .font(IslandTheme.monoSmall)
-                .foregroundStyle(p.cool)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .overlay(Rectangle().stroke(p.cool.opacity(0.45), lineWidth: 1))
-
-            Spacer()
-
-            Button(store.isPaused ? "■ HALT" : (store.isRefreshing ? "… SYNC" : "▶ LIVE")) {
+            Button {
                 store.forceRefresh()
+            } label: {
+                HStack(spacing: 5) {
+                    if store.isRefreshing {
+                        Text("… SYNC")
+                    } else {
+                        Text("▶ LIVE")
+                    }
+                    if store.isPaused {
+                        Text("PAUSED")
+                            .foregroundStyle(p.warn.opacity(0.95))
+                    } else if let last = store.lastRefreshAt {
+                        Text(last, style: .time)
+                            .foregroundStyle(p.muted)
+                    }
+                }
+                .font(IslandTheme.monoBold)
+                .foregroundStyle(store.isPaused ? p.warn : p.cool)
             }
             .buttonStyle(.plain)
-            .font(IslandTheme.monoBold)
-            .foregroundStyle(store.isPaused ? p.warn : p.cool)
             .help(store.t("panel.refreshHint"))
 
-            Text(store.snapshot.radarLabel)
-                .font(IslandTheme.monoBold)
-                .foregroundStyle(p.statusColor(store.snapshot.status))
-                
             Button {
                 store.togglePanelPin()
             } label: {
                 Image(systemName: store.isPanelPinned ? "pin.fill" : "pin")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(store.isPanelPinned ? p.warn : p.muted)
-                    .padding(5)
-                    .background(p.panel.opacity(0.9))
             }
             .buttonStyle(.plain)
             .help(store.isPanelPinned ? store.t("panel.unpin") : store.t("panel.pin"))
@@ -136,36 +144,43 @@ struct IslandPanelView: View {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(p.cool)
-                    .padding(5)
-                    .background(p.panel.opacity(0.9))
-                    .overlay(Rectangle().stroke(p.strokeDim, lineWidth: 1))
             }
             .buttonStyle(.plain)
             .help("Settings")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(p.panel.opacity(0.55))
+        .padding(.vertical, 8)
     }
 
     private var tabBar: some View {
         HStack(spacing: 4) {
             ForEach(AppStore.PanelTab.allCases) { tab in
                 let selected = store.selectedTab == tab
+                let unread = tab == .log ? store.unreadAlertCount : 0
                 Button {
                     store.selectedTab = tab
                     if tab == .log { store.markAlertsRead() }
                 } label: {
-                    Text(tab.title)
-                        .font(IslandTheme.monoBold)
-                        .foregroundStyle(selected ? p.bg : p.muted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 7)
-                        .background(selected ? p.accent : Color.clear)
-                        .overlay(
-                            Rectangle()
-                                .stroke(selected ? p.cool.opacity(0.7) : p.strokeDim, lineWidth: 1)
-                        )
+                    HStack(spacing: 5) {
+                        Text(tab.title)
+                            .font(IslandTheme.monoBold)
+                        if unread > 0 {
+                            Text("\(unread)")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(selected ? p.bg : p.danger)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(selected ? p.bg.opacity(0.22) : p.danger.opacity(0.2))
+                        }
+                    }
+                    .foregroundStyle(selected ? p.bg : p.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(selected ? p.accent : Color.clear)
+                    .overlay(
+                        Rectangle()
+                            .stroke(selected ? p.cool.opacity(0.7) : p.strokeDim, lineWidth: 1)
+                    )
                 }
                 .buttonStyle(.plain)
                 .disabled(store.showOnboarding)
@@ -175,46 +190,25 @@ struct IslandPanelView: View {
         .padding(.vertical, 6)
     }
 
+    /// Ops strip: pause / sound / quit. Sync is topBar LIVE; settings is topBar only.
     private var footer: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Button(store.isPaused ? "▶ RUN" : "■ HALT") {
                 store.togglePause()
             }
             .buttonStyle(.plain)
             .font(IslandTheme.monoBold)
             .foregroundStyle(store.isPaused ? p.cool : p.warn)
+            .help(store.isPaused ? "Resume polling" : "Pause polling")
 
-            Button(store.isRefreshing ? "… SYNC" : "> REFRESH") {
-                store.forceRefresh()
-            }
-            .buttonStyle(.plain)
-            .font(IslandTheme.monoBold)
-            .foregroundStyle(p.cool)
-
-            Button(store.soundEnabled ? "♪ ON" : "♪ OFF") {
+            Button(store.soundEnabled ? "♪ SOUND ON" : "♪ SOUND OFF") {
                 store.soundEnabled.toggle()
             }
             .buttonStyle(.plain)
             .font(IslandTheme.monoBold)
             .foregroundStyle(store.soundEnabled ? p.accent : p.muted)
 
-            if let last = store.lastRefreshAt {
-                Text(last, style: .time)
-                    .font(IslandTheme.monoSmall)
-                    .foregroundStyle(p.muted)
-            }
-
             Spacer()
-
-            Button {
-                store.openAppSettings()
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 11, weight: .bold))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(p.muted)
-            .help("Settings")
 
             Button("✕ QUIT") {
                 store.quitApp()
@@ -233,13 +227,66 @@ struct IslandPanelView: View {
 // MARK: - Pages
 
 private struct RadarPage: View {
-    let store: AppStore
+    @Bindable var store: AppStore
     private var p: ThemePalette { store.palette }
 
     var body: some View {
+        VStack(spacing: 0) {
+            radarSubBar
+            NeonRule(cyan: true)
+            Group {
+                switch store.selectedRadarSubTab {
+                case .overview:
+                    radarOverview
+                case .p2p:
+                    RadarP2PPage(store: store)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var radarSubBar: some View {
+        HStack(spacing: 4) {
+            ForEach(AppStore.RadarSubTab.allCases) { sub in
+                let selected = store.selectedRadarSubTab == sub
+                let openCount = store.snapshot.openP2POrders.count
+                Button {
+                    store.selectedRadarSubTab = sub
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(sub.title)
+                            .font(IslandTheme.monoBold)
+                        if sub == .p2p, openCount > 0 {
+                            Text("\(openCount)")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(selected ? p.bg : p.cool)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background((selected ? p.bg.opacity(0.25) : p.cool.opacity(0.18)))
+                                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                        }
+                    }
+                    .foregroundStyle(selected ? p.bg : p.muted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .background(selected ? p.cool.opacity(0.92) : Color.clear)
+                    .overlay(
+                        Rectangle()
+                            .stroke(selected ? p.accent.opacity(0.55) : p.strokeDim, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(p.panel.opacity(0.35))
+    }
+
+    private var radarOverview: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                // 1) Money  2) Markets  3) Signals
                 RetroSection(title: "PORTFOLIO") {
                     let spotUSD = store.snapshot.binanceLiquidHoldings.reduce(0) { $0 + $1.usd }
                     HStack(spacing: 12) {
@@ -361,9 +408,140 @@ private struct RadarPage: View {
         switch kind {
         case .calm: p.accent
         case .dump: p.danger
-        case .pump: p.cool
+        case .pump: p.gain
         case .feeHigh: p.warn
         case .health: p.danger
+        }
+    }
+}
+
+private struct RadarP2PPage: View {
+    @Bindable var store: AppStore
+    private var p: ThemePalette { store.palette }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if let live = store.snapshot.openP2POrders.first {
+                    RetroSection(title: "LIVE ORDER") {
+                        P2POrderStatusCard(order: live, compact: false)
+                    }
+                }
+
+                RetroSection(title: "P2P ORDERS") {
+                    if !store.isPro && store.snapshot.p2pOrders.filter({ !$0.isSimulated }).isEmpty {
+                        ProPanelLock(store: store)
+                    } else if !store.thresholds.p2pAlertsEnabled
+                                && store.snapshot.p2pOrders.filter({ !$0.isSimulated }).isEmpty {
+                        Text(store.t("panel.p2pOff"))
+                            .font(IslandTheme.mono)
+                            .foregroundStyle(p.muted)
+                    } else if !store.snapshot.binanceConnected
+                                && store.snapshot.p2pOrders.filter({ !$0.isSimulated }).isEmpty {
+                        Text(store.t("panel.noApi"))
+                            .font(IslandTheme.mono)
+                            .foregroundStyle(p.warn)
+                    } else if store.snapshot.p2pOrders.isEmpty {
+                        Text(store.snapshot.p2pStatus ?? store.t("panel.p2pEmpty"))
+                            .font(IslandTheme.mono)
+                            .foregroundStyle(p.muted)
+                    } else {
+                        if let status = store.snapshot.p2pStatus {
+                            Text(status.uppercased())
+                                .font(IslandTheme.monoSmall)
+                                .foregroundStyle(p.cool)
+                        }
+                        ForEach(store.snapshot.p2pOrders) { order in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(order.phase.shortLabel.padding(toLength: 7, withPad: " ", startingAt: 0))
+                                    .font(IslandTheme.monoBold)
+                                    .foregroundStyle(phaseColor(order.phase))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(order.tradeType) \(order.amountText)")
+                                        .font(IslandTheme.monoBold)
+                                        .foregroundStyle(p.text)
+                                    HStack(spacing: 6) {
+                                        if !order.fiatText.isEmpty {
+                                            Text(order.fiatText)
+                                        }
+                                        if !order.payMethodName.isEmpty {
+                                            Text(order.payMethodName)
+                                        }
+                                        Text("#\(order.shortOrderID)")
+                                        if order.isSimulated {
+                                            Text("DEMO")
+                                                .foregroundStyle(p.warn)
+                                        }
+                                    }
+                                    .font(IslandTheme.monoSmall)
+                                    .foregroundStyle(p.muted)
+                                    .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                                if order.isOpen {
+                                    Text("LIVE")
+                                        .font(IslandTheme.monoSmall)
+                                        .foregroundStyle(p.cool)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                RetroSection(title: "DEMO") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(store.t("panel.p2pDemoHint"))
+                            .font(IslandTheme.monoSmall)
+                            .foregroundStyle(p.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        HStack(spacing: 8) {
+                            Button(store.t("panel.simulateP2P")) {
+                                store.simulateP2POrder()
+                            }
+                            .buttonStyle(.plain)
+                            .font(IslandTheme.monoBold)
+                            .foregroundStyle(p.cool)
+
+                            if store.simulatedP2POrders.contains(where: \.isOpen) {
+                                Button(store.t("panel.advanceP2P")) {
+                                    store.advanceSimulatedP2P()
+                                }
+                                .buttonStyle(.plain)
+                                .font(IslandTheme.monoBold)
+                                .foregroundStyle(p.warn)
+
+                                Button(store.t("panel.clearP2PDemo")) {
+                                    store.clearSimulatedP2P()
+                                }
+                                .buttonStyle(.plain)
+                                .font(IslandTheme.monoBold)
+                                .foregroundStyle(p.danger)
+                            }
+                        }
+                    }
+                }
+
+                RetroSection(title: "HINT") {
+                    Text(store.t("panel.p2pHint"))
+                        .font(IslandTheme.monoSmall)
+                        .foregroundStyle(p.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    private func phaseColor(_ phase: BinanceP2POrder.Phase) -> Color {
+        switch phase {
+        case .pendingPayment: p.warn
+        case .paid: p.cool
+        case .distributing: p.accent
+        case .completed: p.muted
+        case .cancelled: p.muted
+        case .appeal: p.danger
+        case .other: p.warn
         }
     }
 }

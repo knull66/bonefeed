@@ -8,6 +8,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Codable {
     case binance
     case macDark
     case macLight
+    case blvck
 
     var id: String { rawValue }
 
@@ -20,6 +21,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .binance: "BINANCE"
         case .macDark: "MAC DARK"
         case .macLight: "MAC LIGHT"
+        case .blvck: "BLVCK"
         }
     }
 
@@ -32,6 +34,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Codable {
         case .binance: "Binance yellow & dark UI"
         case .macDark: "native macOS dark"
         case .macLight: "native macOS light"
+        case .blvck: "matte black, silver chrome / green gains"
         }
     }
 
@@ -56,7 +59,10 @@ struct ThemePalette: Equatable {
     let text: Color
     let muted: Color
     let accent: Color
+    /// Chrome / links / LIVE — not necessarily green.
     let cool: Color
+    /// Uptick / Pump / +% — market numbers that should read as “up”.
+    let gain: Color
     let warn: Color
     let danger: Color
     /// 0…1 — intensity of neon glow / grid
@@ -75,7 +81,7 @@ struct ThemePalette: Equatable {
     }
 
     func pnlColor(_ value: Double) -> Color {
-        value >= 0 ? cool : danger
+        value >= 0 ? gain : danger
     }
 
     func feeColor(_ level: FeeSnapshot.FeeLevel) -> Color {
@@ -99,6 +105,7 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.42, green: 0.40, blue: 0.52),
                 accent: Color(red: 0.78, green: 0.32, blue: 0.58),
                 cool: Color(red: 0.28, green: 0.68, blue: 0.74),
+                gain: Color(red: 0.28, green: 0.68, blue: 0.74),
                 warn: Color(red: 0.82, green: 0.68, blue: 0.28),
                 danger: Color(red: 0.82, green: 0.35, blue: 0.42),
                 glow: 0.18,
@@ -116,6 +123,7 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.55, green: 0.48, blue: 0.72),
                 accent: Color(red: 1.0, green: 0.20, blue: 0.72),
                 cool: Color(red: 0.0, green: 0.95, blue: 1.0),
+                gain: Color(red: 0.0, green: 0.95, blue: 1.0),
                 warn: Color(red: 1.0, green: 0.92, blue: 0.15),
                 danger: Color(red: 1.0, green: 0.28, blue: 0.42),
                 glow: 0.55,
@@ -133,6 +141,7 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.35, green: 0.48, blue: 0.34),
                 accent: Color(red: 0.40, green: 0.85, blue: 0.38),
                 cool: Color(red: 0.45, green: 0.75, blue: 0.65),
+                gain: Color(red: 0.45, green: 0.75, blue: 0.65),
                 warn: Color(red: 0.85, green: 0.70, blue: 0.25),
                 danger: Color(red: 0.85, green: 0.35, blue: 0.28),
                 glow: 0.22,
@@ -150,6 +159,7 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.40, green: 0.40, blue: 0.43),
                 accent: Color(red: 0.55, green: 0.62, blue: 0.70),
                 cool: Color(red: 0.45, green: 0.58, blue: 0.62),
+                gain: Color(red: 0.45, green: 0.58, blue: 0.62),
                 warn: Color(red: 0.72, green: 0.62, blue: 0.40),
                 danger: Color(red: 0.72, green: 0.42, blue: 0.42),
                 glow: 0.08,
@@ -168,6 +178,7 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.518, green: 0.557, blue: 0.612),
                 accent: Color(red: 0.941, green: 0.725, blue: 0.043),
                 cool: Color(red: 0.055, green: 0.796, blue: 0.506),
+                gain: Color(red: 0.055, green: 0.796, blue: 0.506),
                 warn: Color(red: 0.941, green: 0.725, blue: 0.043),
                 danger: Color(red: 0.965, green: 0.275, blue: 0.365),
                 glow: 0.20,
@@ -185,6 +196,7 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.557, green: 0.557, blue: 0.576),
                 accent: Color(red: 0.039, green: 0.518, blue: 1.0),
                 cool: Color(red: 0.188, green: 0.820, blue: 0.345),
+                gain: Color(red: 0.188, green: 0.820, blue: 0.345),
                 warn: Color(red: 1.0, green: 0.839, blue: 0.039),
                 danger: Color(red: 1.0, green: 0.271, blue: 0.227),
                 glow: 0.06,
@@ -202,9 +214,29 @@ struct ThemePalette: Equatable {
                 muted: Color(red: 0.557, green: 0.557, blue: 0.576),
                 accent: Color(red: 0.0, green: 0.478, blue: 1.0),
                 cool: Color(red: 0.204, green: 0.780, blue: 0.349),
+                gain: Color(red: 0.204, green: 0.780, blue: 0.349),
                 warn: Color(red: 1.0, green: 0.624, blue: 0.039),
                 danger: Color(red: 1.0, green: 0.231, blue: 0.188),
                 glow: 0.0,
+                gridOpacity: 0.0,
+                scanlineOpacity: 0.0
+            )
+        case .blvck:
+            // Fashion matte black — silver chrome LIVE, green Pump/+%, bright gold warn.
+            ThemePalette(
+                bg: Color(red: 0.04, green: 0.04, blue: 0.04),
+                bgMid: Color(red: 0.07, green: 0.07, blue: 0.07),
+                panel: Color(red: 0.10, green: 0.10, blue: 0.10),
+                stroke: Color.white.opacity(0.14),
+                strokeDim: Color.white.opacity(0.07),
+                text: Color(red: 0.96, green: 0.95, blue: 0.93),
+                muted: Color(red: 0.50, green: 0.49, blue: 0.47),
+                accent: Color(red: 0.98, green: 0.97, blue: 0.94),
+                cool: Color(red: 0.82, green: 0.82, blue: 0.80),
+                gain: Color(red: 0.55, green: 0.86, blue: 0.62),
+                warn: Color(red: 1.0, green: 0.84, blue: 0.28),
+                danger: Color(red: 0.95, green: 0.32, blue: 0.36),
+                glow: 0.12,
                 gridOpacity: 0.0,
                 scanlineOpacity: 0.0
             )

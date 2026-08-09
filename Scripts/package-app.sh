@@ -25,6 +25,14 @@ fi
 if [[ -f "$ROOT/Support/AppIcon/AppIcon.png" ]]; then
   cp "$ROOT/Support/AppIcon/AppIcon.png" "$RES_DIR/AppIcon.png"
 fi
+if [[ -f "$ROOT/Support/AppIcon/AppIconWhite.png" ]]; then
+  cp "$ROOT/Support/AppIcon/AppIconWhite.png" "$RES_DIR/AppIconWhite.png"
+fi
+
+# Studio credit mark (About)
+if [[ -f "$ROOT/Support/Studio/vibes-district-vd.png" ]]; then
+  cp "$ROOT/Support/Studio/vibes-district-vd.png" "$RES_DIR/vibes-district-vd.png"
+fi
 
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$APP/Contents/Info.plist" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleExecutable string $APP_NAME" "$APP/Contents/Info.plist"

@@ -134,6 +134,8 @@ final class AppStore {
             }
         }
     }
+    /// Submenu inside RADAR: OVERVIEW | P2P
+    var selectedRadarSubTab: RadarSubTab = .overview
     var isRefreshing = false
     var depositLog: [DepositEvent] = []
     var watchedAssets: [String] = RadarWatchlist.default
@@ -149,6 +151,8 @@ final class AppStore {
     var alertLog: [IslandAlert] = []
     var bannerAlert: IslandAlert?
     var pillPulse = false
+    /// True while the notch should stay open for a fresh alert (store-driven).
+    var alertNotchExpanded = false
     var lastRefreshAt: Date?
 
     /// Floating panel UI (driven by IslandUIController).
@@ -159,6 +163,17 @@ final class AppStore {
     var onTogglePanel: (() -> Void)?
     var onTogglePin: (() -> Void)?
     var onCollapsePanel: (() -> Void)?
+    /// Notch hover peek — resizes the menu-bar panel.
+    var onNotchHoverExpand: ((Bool) -> Void)?
+    /// Preferred notch chrome mode (collapsed / P2P timer dock / full card).
+    var onNotchModeChange: ((NotchDisplayMode) -> Void)?
+    var notchHoverExpanded = false
+    var notchDisplayMode: NotchDisplayMode = .collapsed
+    /// Live menu-bar strip height (pts) — keeps the collapsed island flush with the bar.
+    var notchMenuBarHeight: CGFloat = 24
+    /// Set by IslandNotchView while the pointer is over the island.
+    var notchPointerInside = false
+    private var alertNotchTask: Task<Void, Never>?
 
     private let market = BitcoinMarketService()
     private let binance = BinanceAPIService()
@@ -168,6 +183,11 @@ final class AppStore {
     private var notifyCooldownUntil: [String: Date] = [:]
     private var seenBinanceDepositIDs: Set<String>
     private var binancePrimed = false
+    /// orderNumber → last seen orderStatus
+    private var seenP2POrderStatus: [String: String]
+    private var p2pPrimed = false
+    /// Local demo P2P orders (not from Binance) — for UI testing without a real trade.
+    var simulatedP2POrders: [BinanceP2POrder] = []
     private var bannerTask: Task<Void, Never>?
     private var pulseTask: Task<Void, Never>?
     private var cachedCredentials: BinanceCredentials?
@@ -185,6 +205,7 @@ final class AppStore {
         static let appTheme = "bonefeed.appTheme"
         static let wallets = "bonefeed.wallets"
         static let seenBinance = "bonefeed.seenBinanceDeposits"
+        static let seenP2P = "bonefeed.seenP2POrders"
         static let thresholds = "bonefeed.thresholds"
         static let watchedAssets = "bonefeed.watchedAssets"
         static let onboardingDone = "bonefeed.onboardingDone"
@@ -209,6 +230,20 @@ final class AppStore {
         }
     }
 
+    enum RadarSubTab: String, CaseIterable, Identifiable {
+        case overview
+        case p2p
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .overview: "OVERVIEW"
+            case .p2p: "P2P"
+            }
+        }
+    }
+
     func completeOnboarding() {
         showOnboarding = false
         UserDefaults.standard.set(true, forKey: Keys.onboardingDone)
@@ -228,6 +263,28 @@ final class AppStore {
 
     func collapsePanel() {
         onCollapsePanel?()
+    }
+
+    /// Open the dashboard on Radar → P2P (live order status).
+    func openP2PStatus() {
+        selectedTab = .radar
+        selectedRadarSubTab = .p2p
+        if !isPanelOpen {
+            onTogglePanel?()
+        }
+    }
+
+    /// Keep a slim timer dock while an open P2P order exists.
+    func syncNotchMode(hovering: Bool = false) {
+        let mode: NotchDisplayMode
+        if hovering || alertNotchExpanded {
+            mode = .expanded
+        } else if snapshot.openP2POrders.first != nil {
+            mode = .p2pDock
+        } else {
+            mode = .collapsed
+        }
+        onNotchModeChange?(mode)
     }
 
     init() {
@@ -257,6 +314,19 @@ final class AppStore {
         } else {
             seenBinanceDepositIDs = []
             binancePrimed = false
+        }
+
+        if UserDefaults.standard.object(forKey: Keys.seenP2P) != nil {
+            if let data = UserDefaults.standard.data(forKey: Keys.seenP2P),
+               let saved = try? JSONDecoder().decode([String: String].self, from: data) {
+                seenP2POrderStatus = saved
+            } else {
+                seenP2POrderStatus = [:]
+            }
+            p2pPrimed = true
+        } else {
+            seenP2POrderStatus = [:]
+            p2pPrimed = false
         }
 
         let loadedWallets: [WatchedWallet]
@@ -324,7 +394,9 @@ final class AppStore {
             fundingStatus: nil,
             activeSignals: [],
             marketTicks: [],
-            userStreamLive: false
+            userStreamLive: false,
+            p2pOrders: [],
+            p2pStatus: nil
         )
 
         appLanguage = resolvedLanguage
@@ -461,11 +533,13 @@ final class AppStore {
                 async let balTask = binance.fetchBalanceBundle(credentials: credentials)
                 async let depTask = binance.fetchDepositHistory(credentials: credentials, coin: nil, limit: 50)
                 async let priceTask = binance.fetchUSDPrices()
+                async let p2pTask = fetchP2POrdersIfEnabled(credentials: credentials)
                 let bundle = try await balTask
                 var balances = bundle.balances
                 let deposits = try await depTask
                 let prices = try await priceTask
                 let earn = await binance.fetchEarnBundle(credentials: credentials, prices: prices)
+                let p2pOutcome = await p2pTask
 
                 // LD* ledger tokens mirror flexible Earn — drop only while Earn positions exist.
                 // After full redeem, remaining LD* (if any) count as Spot so we don't hide funds.
@@ -568,13 +642,45 @@ final class AppStore {
                     }
                 }
 
+                switch p2pOutcome {
+                case .success(let orders):
+                    let fiatFilter = thresholds.p2pFiat.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                    let visible = orders.filter { order in
+                        fiatFilter.isEmpty || order.fiat == fiatFilter
+                    }
+                    let open = visible.filter(\.isOpen).sorted { $0.createTime > $1.createTime }
+                    let recentClosed = visible.filter { !$0.isOpen }.sorted { $0.createTime > $1.createTime }
+                    snap.p2pOrders = mergedP2PDisplayOrders(apiOpen: open, apiClosed: recentClosed)
+                    let openCount = snap.openP2POrders.count
+                    snap.p2pStatus = openCount == 0
+                        ? (visible.isEmpty && simulatedP2POrders.isEmpty ? "No recent P2P orders" : "No open orders")
+                        : "\(openCount) open"
+                    extraAlerts.append(contentsOf: processP2POrders(orders))
+                case .failure(let message):
+                    snap.p2pOrders = mergedP2PDisplayOrders(apiOpen: [], apiClosed: [])
+                    snap.p2pStatus = simulatedP2POrders.isEmpty ? message : "\(snap.openP2POrders.count) open · demo"
+                    // Soft-fail: Spot/Earn keep working if C2C permission is missing.
+                    if thresholds.p2pAlertsEnabled, snap.statusDetail == nil, simulatedP2POrders.isEmpty {
+                        snap.statusDetail = "P2P: \(message)"
+                    }
+                case .skipped:
+                    snap.p2pOrders = mergedP2PDisplayOrders(apiOpen: [], apiClosed: [])
+                    snap.p2pStatus = simulatedP2POrders.isEmpty ? nil : "\(snap.openP2POrders.count) open · demo"
+                }
+
                 let hasUnlockSoon = extraAlerts.contains {
                     $0.kind == .earn && $0.title.hasPrefix("Unlock")
                 }
                 let hasHealth = extraAlerts.contains { $0.kind == .health }
+                let hasP2P = extraAlerts.contains { $0.kind == .p2p }
                 if !fresh.isEmpty {
                     snap.status = .actionNeeded
                     snap.radarLabel = RadarCode.deposit
+                } else if hasP2P {
+                    snap.status = .actionNeeded
+                    snap.radarLabel = RadarCode.p2p
+                    selectedTab = .radar
+                    selectedRadarSubTab = .p2p
                 } else if hasHealth {
                     snap.radarLabel = RadarCode.health
                     if snap.status == .watching || snap.status == .idle {
@@ -588,7 +694,7 @@ final class AppStore {
                 } else if snap.activeSignals.contains(where: { $0.kind == .dump || $0.kind == .pump }) {
                     snap.radarLabel = RadarCode.signal
                 } else if RadarCode.calmCodes.contains(snap.radarLabel)
-                    || [RadarCode.unlock, RadarCode.signal, RadarCode.health, "LISTENING", "UNLOCK", "SIGNAL", "HEALTH"].contains(snap.radarLabel) {
+                    || [RadarCode.unlock, RadarCode.signal, RadarCode.health, RadarCode.p2p, "LISTENING", "UNLOCK", "SIGNAL", "HEALTH", "P2P"].contains(snap.radarLabel) {
                     snap.radarLabel = earnUSD > 0 ? RadarCode.earn : RadarCode.connected
                 }
             } catch {
@@ -611,6 +717,7 @@ final class AppStore {
 
         snap.alerts = extraAlerts
         apply(snapshot: snap, newDeposits: newDeposits)
+        syncNotchMode(hovering: notchPointerInside)
     }
 
     private func ensureUserStream(credentials: BinanceCredentials) async {
@@ -712,6 +819,21 @@ final class AppStore {
         updateThresholds(next)
     }
 
+    func setP2PAlertsEnabled(_ enabled: Bool) {
+        guard isPro else { return }
+        var next = thresholds
+        next.p2pAlertsEnabled = enabled
+        updateThresholds(next)
+    }
+
+    func setP2PFiat(_ fiat: String) {
+        guard isPro else { return }
+        var next = thresholds
+        next.p2pFiat = fiat.uppercased()
+        if next.p2pFiat == "AUTO" { next.p2pFiat = "" }
+        updateThresholds(next)
+    }
+
     func toggleSignalAsset(_ symbol: String) {
         let s = symbol.uppercased()
         var next = thresholds
@@ -804,6 +926,9 @@ final class AppStore {
         binancePrimed = false
         seenBinanceDepositIDs = []
         UserDefaults.standard.removeObject(forKey: Keys.seenBinance)
+        p2pPrimed = false
+        seenP2POrderStatus = [:]
+        UserDefaults.standard.removeObject(forKey: Keys.seenP2P)
         snapshot.binanceConnected = false
         snapshot.binanceBTC = 0
         snapshot.binanceBTCUSD = 0
@@ -817,6 +942,8 @@ final class AppStore {
         snapshot.earnStatus = nil
         snapshot.fundingStatus = nil
         snapshot.userStreamLive = false
+        snapshot.p2pOrders = []
+        snapshot.p2pStatus = nil
         lastEarnUSD = nil
         earnBaselineDone = false
         userStreamStarted = false
@@ -977,6 +1104,102 @@ final class AppStore {
         }
     }
 
+    /// Demo P2P order — exercises the status card + notch without a real C2C trade.
+    func simulateP2POrder() {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let order = BinanceP2POrder(
+            orderNumber: "SIM\(stamp)",
+            tradeType: "SELL",
+            asset: "USDT",
+            fiat: "VES",
+            fiatSymbol: "Bs ",
+            amount: 9.39,
+            totalPrice: 8_000,
+            unitPrice: 851.97,
+            orderStatus: "PENDING",
+            createTime: .now,
+            payMethodName: "Pago Móvil",
+            counterPartNickName: "DemoBuyer",
+            expireTime: Date().addingTimeInterval(7 * 60),
+            isSimulated: true
+        )
+        simulatedP2POrders.removeAll { $0.isSimulated && !$0.isOpen }
+        simulatedP2POrders.insert(order, at: 0)
+        publishSimulatedP2P()
+        let alert = makeP2PAlert(for: order)
+        alertLog.insert(alert, at: 0)
+        snapshot.status = .actionNeeded
+        snapshot.radarLabel = RadarCode.p2p
+        selectedTab = .radar
+        selectedRadarSubTab = .p2p
+        present(alert)
+        if soundEnabled {
+            SoundPlayer.play(for: .deposit)
+        }
+        Task {
+            if notificationsEnabled {
+                await AppNotifier.notify(alert: alert, sound: false)
+            }
+        }
+    }
+
+    /// Advance the newest demo order through NEW → PAID → RELEASE → DONE.
+    func advanceSimulatedP2P() {
+        guard let idx = simulatedP2POrders.firstIndex(where: \.isOpen) else { return }
+        var order = simulatedP2POrders[idx]
+        let nextStatus: String? = switch order.phase {
+        case .pendingPayment: "BUYER_PAYED"
+        case .paid: "DISTRIBUTING"
+        case .distributing: "COMPLETED"
+        default: nil
+        }
+        guard let nextStatus else { return }
+        order.orderStatus = nextStatus
+        if order.phase == .completed || order.phase == .cancelled {
+            order.expireTime = nil
+        } else if order.phase == .paid {
+            order.expireTime = Date().addingTimeInterval(10 * 60)
+        }
+        simulatedP2POrders[idx] = order
+        publishSimulatedP2P()
+        let alert = makeP2PAlert(for: order)
+        alertLog.insert(alert, at: 0)
+        present(alert)
+        if soundEnabled {
+            SoundPlayer.play(for: .deposit)
+        }
+    }
+
+    func clearSimulatedP2P() {
+        simulatedP2POrders.removeAll()
+        publishSimulatedP2P()
+    }
+
+    private func publishSimulatedP2P() {
+        let api = snapshot.p2pOrders.filter { !$0.isSimulated }
+        let open = api.filter(\.isOpen).sorted { $0.createTime > $1.createTime }
+        let closed = api.filter { !$0.isOpen }.sorted { $0.createTime > $1.createTime }
+        snapshot.p2pOrders = mergedP2PDisplayOrders(apiOpen: open, apiClosed: closed)
+        let openCount = snapshot.openP2POrders.count
+        snapshot.p2pStatus = openCount == 0 ? "No open orders" : "\(openCount) open"
+        syncNotchMode(hovering: notchPointerInside)
+    }
+
+    private func mergedP2PDisplayOrders(
+        apiOpen: [BinanceP2POrder],
+        apiClosed: [BinanceP2POrder]
+    ) -> [BinanceP2POrder] {
+        let sims = simulatedP2POrders.sorted { $0.createTime > $1.createTime }
+        var seen = Set<String>()
+        var merged: [BinanceP2POrder] = []
+        for order in sims + apiOpen + apiClosed {
+            if seen.insert(order.orderNumber).inserted {
+                merged.append(order)
+            }
+        }
+        return Array(merged.prefix(8))
+    }
+
     func testSound() {
         SoundPlayer.play(for: .deposit)
     }
@@ -1075,6 +1298,94 @@ final class AppStore {
             ),
             delta
         )
+    }
+
+    private enum P2PFetchOutcome {
+        case skipped
+        case success([BinanceP2POrder])
+        case failure(String)
+    }
+
+    private func fetchP2POrdersIfEnabled(credentials: BinanceCredentials) async -> P2PFetchOutcome {
+        guard thresholds.p2pAlertsEnabled else { return .skipped }
+        do {
+            let orders = try await binance.fetchP2POrderHistory(credentials: credentials, rows: 50)
+            return .success(orders)
+        } catch {
+            return .failure(error.localizedDescription)
+        }
+    }
+
+    private func processP2POrders(_ orders: [BinanceP2POrder]) -> [IslandAlert] {
+        if !p2pPrimed {
+            for order in orders {
+                seenP2POrderStatus[order.orderNumber] = order.orderStatus
+            }
+            p2pPrimed = true
+            persistSeenP2P()
+            return []
+        }
+
+        let fiatFilter = thresholds.p2pFiat.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        var changed = false
+        var fresh: [IslandAlert] = []
+
+        for order in orders {
+            let prev = seenP2POrderStatus[order.orderNumber]
+            let statusChanged = prev == nil || prev != order.orderStatus
+            guard statusChanged else { continue }
+
+            seenP2POrderStatus[order.orderNumber] = order.orderStatus
+            changed = true
+
+            let passesFiat = fiatFilter.isEmpty || order.fiat == fiatFilter
+            guard passesFiat else { continue }
+
+            fresh.append(makeP2PAlert(for: order))
+        }
+
+        if changed {
+            // Cap stored map so it doesn't grow forever.
+            if seenP2POrderStatus.count > 400 {
+                let keep = Set(orders.map(\.orderNumber))
+                seenP2POrderStatus = seenP2POrderStatus.filter { keep.contains($0.key) }
+            }
+            persistSeenP2P()
+        }
+        return fresh
+    }
+
+    private func makeP2PAlert(for order: BinanceP2POrder) -> IslandAlert {
+        let titleKey: String = switch order.phase {
+        case .pendingPayment: "msg.p2pNew"
+        case .paid: "msg.p2pPaid"
+        case .distributing: "msg.p2pRelease"
+        case .completed: "msg.p2pDone"
+        case .cancelled: "msg.p2pCancel"
+        case .appeal: "msg.p2pAppeal"
+        case .other: "msg.p2pStatus"
+        }
+        var parts = ["\(order.tradeType) \(order.amountText)"]
+        if !order.fiatText.isEmpty { parts.append(order.fiatText) }
+        if !order.payMethodName.isEmpty { parts.append(order.payMethodName) }
+        parts.append("#\(order.shortOrderID)")
+        if order.phase == .other, !order.orderStatus.isEmpty {
+            parts.insert(order.orderStatus, at: 1)
+        }
+        return IslandAlert(
+            id: UUID(),
+            kind: .p2p,
+            title: t(titleKey),
+            detail: parts.joined(separator: " · "),
+            createdAt: .now,
+            isRead: false
+        )
+    }
+
+    private func persistSeenP2P() {
+        if let data = try? JSONEncoder().encode(seenP2POrderStatus) {
+            UserDefaults.standard.set(data, forKey: Keys.seenP2P)
+        }
     }
 
     private func processBinanceDeposits(_ deposits: [BinanceDepositRecord], prices: [String: Double]) -> [DepositEvent] {
@@ -1225,6 +1536,7 @@ final class AppStore {
     private func alertPriority(_ alert: IslandAlert) -> Int {
         switch alert.kind {
         case .deposit: 0
+        case .p2p: 0
         case .health: 1
         case .earn: 2
         case .pnl: 3
@@ -1242,8 +1554,8 @@ final class AppStore {
 
         let quiet = thresholds.isInQuietHours()
         switch alert.kind {
-        case .deposit:
-            break // always (subject to cooldown)
+        case .deposit, .p2p:
+            break // always (subject to cooldown) — critical ops
         case .earn:
             if quiet { return false }
         case .gas, .pnl, .health:
@@ -1260,10 +1572,14 @@ final class AppStore {
     private func present(_ alert: IslandAlert) {
         bannerAlert = alert
         pillPulse = true
+        // Always expand immediately — even if the content panel is open
+        // (SIMULATE_DEPOSIT / live alerts). Do not wait for hover or panel close.
+        fireNotchAlertExpand()
 
+        // Keep banner/pulse aligned with notch alert burst (~4.2s expand + read).
         bannerTask?.cancel()
         bannerTask = Task {
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: .milliseconds(4_800))
             if !Task.isCancelled {
                 bannerAlert = nil
             }
@@ -1271,9 +1587,30 @@ final class AppStore {
 
         pulseTask?.cancel()
         pulseTask = Task {
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .milliseconds(4_200))
             if !Task.isCancelled {
                 pillPulse = false
+            }
+        }
+    }
+
+    private func fireNotchAlertExpand() {
+        alertNotchTask?.cancel()
+        alertNotchExpanded = true
+        // Resize the NSPanel from here — don't wait for the SwiftUI view to notice.
+        onNotchModeChange?(.expanded)
+
+        alertNotchTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(4_200))
+            guard !Task.isCancelled else { return }
+            alertNotchExpanded = false
+            if notchPointerInside {
+                onNotchModeChange?(.expanded)
+            } else if snapshot.openP2POrders.first != nil {
+                // Stay docked with the live timer — don't fully collapse like Binance's floating card.
+                onNotchModeChange?(.p2pDock)
+            } else {
+                onNotchModeChange?(.collapsed)
             }
         }
     }

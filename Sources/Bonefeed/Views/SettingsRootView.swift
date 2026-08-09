@@ -531,6 +531,7 @@ private struct ProSettingsPane: View {
                         bullet(store.t("pro.pro.3"))
                         bullet(store.t("pro.pro.4"))
                         bullet(store.t("pro.pro.5"))
+                        bullet(store.t("pro.pro.6"))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(4)
@@ -843,6 +844,41 @@ private struct AlertsSettingsPane: View {
                 .padding(4)
             }
 
+            GroupBox(store.t("alerts.p2p")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !store.isPro {
+                        ProGateBanner(text: store.t("pro.gate.binance"), store: store)
+                    }
+                    Text(store.t("alerts.p2pHint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(store.t("alerts.p2pEnable"), isOn: Binding(
+                        get: { store.thresholds.p2pAlertsEnabled },
+                        set: { store.setP2PAlertsEnabled($0) }
+                    ))
+                    .disabled(!store.isPro)
+                    if store.isPro, store.thresholds.p2pAlertsEnabled {
+                        HStack {
+                            Text(store.t("alerts.p2pFiat"))
+                            Picker("", selection: Binding(
+                                get: { P2PFiatOption.fromStored(store.thresholds.p2pFiat) },
+                                set: { store.setP2PFiat($0.rawValue) }
+                            )) {
+                                ForEach(P2PFiatOption.allCases) { option in
+                                    Text(option == .auto ? store.t("alerts.p2pFiatAuto") : option.label)
+                                        .tag(option)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: 160)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(4)
+                .opacity(store.isPro ? 1 : 0.55)
+            }
+
             Spacer(minLength: 0)
         }
     }
@@ -975,11 +1011,52 @@ private struct AboutSettingsPane: View {
                 store.showGuideFromSettings()
             }
 
+            if let site = Brand.siteURL {
+                Link(destination: site) {
+                    Label(Brand.siteHost, systemImage: "globe")
+                        .font(.caption.weight(.semibold))
+                }
+            }
+
             Text(store.t("about.footer"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            StudioCreditRow()
+
             Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct StudioCreditRow: View {
+    var body: some View {
+        Group {
+            if let url = Brand.studioURL {
+                Link(destination: url) {
+                    creditContent
+                }
+                .buttonStyle(.plain)
+            } else {
+                creditContent
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var creditContent: some View {
+        HStack(spacing: 8) {
+            if let image = StudioLogoImage.load() {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 22, height: 22)
+                    .opacity(0.75)
+            }
+            Text("\(L10n.t("about.madeBy")) \(Brand.studioName)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }

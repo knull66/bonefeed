@@ -10,6 +10,7 @@ enum SoundPlayer {
         case .whale: "Purr"
         case .deposit: "Glass"
         case .earn: "Hero"
+        case .p2p: "Glass"
         }
 
         if let sound = NSSound(named: name) {

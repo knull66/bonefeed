@@ -45,6 +45,95 @@ struct BinanceDepositRecord: Identifiable, Sendable, Equatable {
     }
 }
 
+struct BinanceP2POrder: Identifiable, Codable, Sendable, Equatable {
+    var id: String { orderNumber }
+    var orderNumber: String
+    var tradeType: String
+    var asset: String
+    var fiat: String
+    var fiatSymbol: String
+    var amount: Double
+    var totalPrice: Double
+    var unitPrice: Double
+    var orderStatus: String
+    var createTime: Date
+    var payMethodName: String
+    var counterPartNickName: String
+    /// Payment / release deadline when Binance provides it (ms → Date).
+    var expireTime: Date? = nil
+    /// Local demo order — merged with live C2C history for UI testing.
+    var isSimulated: Bool = false
+
+    enum Phase: String, Sendable {
+        case pendingPayment
+        case paid
+        case distributing
+        case completed
+        case cancelled
+        case appeal
+        case other
+
+        var shortLabel: String {
+            switch self {
+            case .pendingPayment: "NEW"
+            case .paid: "PAID"
+            case .distributing: "RELEASE"
+            case .completed: "DONE"
+            case .cancelled: "CANCEL"
+            case .appeal: "APPEAL"
+            case .other: "…"
+            }
+        }
+    }
+
+    var phase: Phase {
+        switch orderStatus.uppercased() {
+        case "PENDING", "TRADING", "PENDING_PAYMENT":
+            .pendingPayment
+        case "BUYER_PAYED", "BUYER_PAID", "PENDING_RELEASE":
+            .paid
+        case "DISTRIBUTING":
+            .distributing
+        case "COMPLETED":
+            .completed
+        case "CANCELLED", "CANCELED", "CANCELLED_BY_SYSTEM", "CANCELED_BY_SYSTEM":
+            .cancelled
+        case "IN_APPEAL", "APPEAL", "DISPUTE":
+            .appeal
+        default:
+            .other
+        }
+    }
+
+    var isOpen: Bool {
+        switch phase {
+        case .completed, .cancelled: false
+        default: true
+        }
+    }
+
+    var shortOrderID: String {
+        if orderNumber.count <= 10 { return orderNumber }
+        return String(orderNumber.suffix(10))
+    }
+
+    var amountText: String {
+        if amount <= 0 { return asset }
+        if amount == floor(amount) {
+            return String(format: "%.0f %@", amount, asset)
+        }
+        return String(format: "%.4g %@", amount, asset)
+    }
+
+    var fiatText: String {
+        guard totalPrice > 0, !fiat.isEmpty else { return fiat }
+        let total = totalPrice >= 100
+            ? String(format: "%.0f", totalPrice)
+            : String(format: "%.2f", totalPrice)
+        return "\(fiatSymbol)\(total) \(fiat)"
+    }
+}
+
 enum BinanceAPIError: LocalizedError {
     case missingCredentials
     case badURL
@@ -418,6 +507,62 @@ actor BinanceAPIService {
         }
     }
 
+    /// Personal P2P / C2C order history (last ~30 days if no time range). Watch-only.
+    func fetchP2POrderHistory(
+        credentials: BinanceCredentials,
+        tradeType: String? = nil,
+        rows: Int = 50
+    ) async throws -> [BinanceP2POrder] {
+        var params: [String: String] = [
+            "page": "1",
+            "rows": String(min(100, max(1, rows)))
+        ]
+        if let tradeType, !tradeType.isEmpty {
+            params["tradeType"] = tradeType.uppercased()
+        }
+        let data = try await signedGET(
+            path: "/sapi/v1/c2c/orderMatch/listUserOrderHistory",
+            params: params,
+            credentials: credentials
+        )
+        let decodedRows: [C2COrderRow]
+        if let wrapped = try? JSONDecoder().decode(C2CHistoryResponse.self, from: data) {
+            decodedRows = wrapped.data ?? []
+        } else if let bare = try? JSONDecoder().decode([C2COrderRow].self, from: data) {
+            decodedRows = bare
+        } else {
+            throw BinanceAPIError.decoding
+        }
+        return decodedRows.compactMap { row in
+            guard let orderNumber = row.orderNumber, !orderNumber.isEmpty else { return nil }
+            let amount = Double(row.amount ?? "") ?? 0
+            let total = Double(row.totalPrice ?? "") ?? 0
+            let unit = Double(row.unitPrice ?? "") ?? 0
+            let createdMs = row.createTime ?? 0
+            let expireMs = row.expireTime ?? row.notifyPayExpireTime
+            let expire: Date? = {
+                guard let expireMs, expireMs > 0 else { return nil }
+                return Date(timeIntervalSince1970: Double(expireMs) / 1000)
+            }()
+            return BinanceP2POrder(
+                orderNumber: orderNumber,
+                tradeType: (row.tradeType ?? "").uppercased(),
+                asset: (row.asset ?? "").uppercased(),
+                fiat: (row.fiat ?? "").uppercased(),
+                fiatSymbol: row.fiatSymbol ?? "",
+                amount: amount,
+                totalPrice: total,
+                unitPrice: unit,
+                orderStatus: (row.orderStatus ?? "").uppercased(),
+                createTime: Date(timeIntervalSince1970: Double(createdMs) / 1000),
+                payMethodName: row.payMethodName ?? "",
+                counterPartNickName: row.counterPartNickName ?? "",
+                expireTime: expire,
+                isSimulated: false
+            )
+        }
+    }
+
     func fetchUSDPrices() async throws -> [String: Double] {
         var request = URLRequest(url: URL(string: "https://api.binance.com/api/v3/ticker/price")!)
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -590,6 +735,27 @@ private struct DepositResponse: Decodable {
     let address: String?
     let txId: String?
     let insertTime: Int64
+}
+
+private struct C2CHistoryResponse: Decodable {
+    let data: [C2COrderRow]?
+}
+
+private struct C2COrderRow: Decodable {
+    let orderNumber: String?
+    let tradeType: String?
+    let asset: String?
+    let fiat: String?
+    let fiatSymbol: String?
+    let amount: String?
+    let totalPrice: String?
+    let unitPrice: String?
+    let orderStatus: String?
+    let createTime: Int64?
+    let expireTime: Int64?
+    let notifyPayExpireTime: Int64?
+    let payMethodName: String?
+    let counterPartNickName: String?
 }
 
 private struct BinanceErrorBody: Decodable {

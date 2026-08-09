@@ -20,6 +20,18 @@ cd /path/to/Bonefeed   # or this repo folder
 open ~/Applications/Bonefeed.app
 ```
 
+## Landing
+
+Live: [https://bonefeed.netlify.app](https://bonefeed.netlify.app)
+
+Local preview:
+
+```bash
+open Web/index.html
+# or
+python3 -m http.server 8080 --directory Web
+```
+
 ## Identifiers
 
 - Bundle ID: `app.bonefeed.macos`

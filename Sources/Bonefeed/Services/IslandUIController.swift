@@ -1,5 +1,13 @@
 import AppKit
+import QuartzCore
 import SwiftUI
+
+/// Collapsed menu-bar strip, persistent P2P timer dock, or full peek card.
+enum NotchDisplayMode: Equatable {
+    case collapsed
+    case p2pDock
+    case expanded
+}
 
 /// Floating menu-bar notch + detachable content panel.
 @MainActor
@@ -11,6 +19,7 @@ final class IslandUIController: NSObject, NSWindowDelegate {
     private var contentPanel: NSPanel?
     private var screenObserver: NSObjectProtocol?
     private var didPlaceContent = false
+    private var notchMode: NotchDisplayMode = .collapsed
     /// Avoid instant close when opening from the non-activating notch.
     private var ignoreResignUntil: Date = .distantPast
 
@@ -38,6 +47,19 @@ final class IslandUIController: NSObject, NSWindowDelegate {
         store.onTogglePanel = { [weak self] in self?.toggleContentPanel() }
         store.onTogglePin = { [weak self] in self?.togglePin() }
         store.onCollapsePanel = { [weak self] in self?.hideContentPanel(force: false) }
+        store.onNotchHoverExpand = { [weak self] expanded in
+            // Legacy bool bridge — prefer dock when collapsing with a live P2P order.
+            if expanded {
+                self?.setNotchMode(.expanded)
+            } else if self?.store?.snapshot.openP2POrders.first != nil {
+                self?.setNotchMode(.p2pDock)
+            } else {
+                self?.setNotchMode(.collapsed)
+            }
+        }
+        store.onNotchModeChange = { [weak self] mode in
+            self?.setNotchMode(mode)
+        }
 
         showNotch()
         // Layout after metrics settle (aux areas / main screen can lag at launch).
@@ -67,7 +89,7 @@ final class IslandUIController: NSObject, NSWindowDelegate {
             hosting.view.layer?.backgroundColor = NSColor.clear.cgColor
 
             let panel = NSPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 260, height: 24),
+                contentRect: NSRect(x: 0, y: 0, width: 260, height: 37),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -102,33 +124,68 @@ final class IslandUIController: NSObject, NSWindowDelegate {
         return NSScreen.main ?? NSScreen.screens.first
     }
 
-    func repositionNotch() {
+    func setNotchExpanded(_ expanded: Bool) {
+        setNotchMode(expanded ? .expanded : .collapsed)
+    }
+
+    func setNotchMode(_ mode: NotchDisplayMode) {
+        if notchMode == mode {
+            if mode != .collapsed { repositionNotch(animated: true) }
+            return
+        }
+        notchMode = mode
+        store?.notchHoverExpanded = mode == .expanded
+        store?.notchDisplayMode = mode
+        repositionNotch(animated: true)
+    }
+
+    func repositionNotch(animated: Bool = false) {
         guard let panel = notchPanel else { return }
         guard let screen = notchScreen() else { return }
 
-        let menuBarHeight = max(screen.frame.maxY - screen.visibleFrame.maxY, 24)
-        // Fit inside the menu bar / notch black area (not below it).
-        let height = min(24, menuBarHeight - 1)
-
-        // Hardware notch is always horizontally centered — do NOT derive midX from
-        // auxiliary areas (menu extras / multi-display can bias them left).
+        // Match the real menu-bar strip (often ~25–38pt), not a hard-coded 24.
+        let menuBarHeight = max(screen.frame.maxY - screen.visibleFrame.maxY, 25)
+        store?.notchMenuBarHeight = menuBarHeight
+        let collapsedHeight = menuBarHeight
+        let height: CGFloat = {
+            switch notchMode {
+            case .collapsed: collapsedHeight
+            case .p2pDock: menuBarHeight + 40
+            case .expanded: max(168, menuBarHeight + 140)
+            }
+        }()
         let midX = screen.frame.midX
-        // Wider strip so the horizontal ticker can breathe.
-        var width: CGFloat = 320
+        var width: CGFloat = notchMode == .collapsed ? 320 : 360
         if let left = screen.auxiliaryTopLeftArea,
            let right = screen.auxiliaryTopRightArea,
            right.minX > left.maxX + 40 {
             let gap = right.minX - left.maxX
-            width = min(width, max(200, gap - 10))
+            let minW: CGFloat = notchMode == .collapsed ? 200 : 260
+            let pad: CGFloat = notchMode == .collapsed ? -8 : 48
+            width = min(width, max(minW, gap + pad))
         }
 
         let x = midX - width / 2
-        // Flush to the top of the screen, vertically centered in the menu bar band.
-        let y = screen.frame.maxY - menuBarHeight + (menuBarHeight - height) / 2
-
+        let y = screen.frame.maxY - height
         let frame = NSRect(x: x, y: y, width: width, height: height)
-        panel.setFrame(frame, display: true)
-        panel.contentView?.frame = NSRect(origin: .zero, size: frame.size)
+
+        panel.hasShadow = false
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        if animated {
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.40
+                ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.22, 1.0, 0.36, 1.0)
+                panel.animator().setFrame(frame, display: true)
+            } completionHandler: { [weak panel] in
+                Task { @MainActor in
+                    panel?.contentView?.frame = NSRect(origin: .zero, size: frame.size)
+                }
+            }
+        } else {
+            panel.setFrame(frame, display: true)
+            panel.contentView?.frame = NSRect(origin: .zero, size: frame.size)
+        }
         panel.orderFrontRegardless()
     }
 
@@ -150,18 +207,23 @@ final class IslandUIController: NSObject, NSWindowDelegate {
 
         if contentPanel == nil {
             let hosting = NSHostingController(rootView: IslandPanelView(store: store))
+            hosting.sizingOptions = []
+            // Normal Mac window chrome: transparent titlebar + real close traffic light.
             let panel = NSPanel(
                 contentRect: NSRect(x: 0, y: 0, width: 380, height: 520),
-                styleMask: [.titled, .closable, .fullSizeContentView, .resizable],
+                styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
             panel.contentViewController = hosting
-            panel.title = Brand.name
+            // Empty title — brand is drawn in the SwiftUI toolbar (avoids "Bonefeed" twice).
+            panel.title = ""
             panel.titleVisibility = .hidden
             panel.titlebarAppearsTransparent = true
+            panel.titlebarSeparatorStyle = .none
+            panel.toolbarStyle = .unifiedCompact
             panel.isOpaque = true
-            panel.backgroundColor = NSColor.black
+            panel.hasShadow = true
             panel.isMovableByWindowBackground = true
             panel.isReleasedWhenClosed = false
             panel.delegate = self
@@ -169,11 +231,14 @@ final class IslandUIController: NSObject, NSWindowDelegate {
             panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
             panel.standardWindowButton(.zoomButton)?.isHidden = true
+            panel.standardWindowButton(.closeButton)?.isHidden = false
             panel.hidesOnDeactivate = false
             contentPanel = panel
             applyPinState()
             placeContentPanel()
         }
+
+        applyPanelBackground()
 
         // Splash each open.
         store.panelOpenToken &+= 1
@@ -183,9 +248,22 @@ final class IslandUIController: NSObject, NSWindowDelegate {
         if !didPlaceContent {
             placeContentPanel()
         }
+        // Ensure the system close light is visible and clickable.
+        panel.standardWindowButton(.closeButton)?.isHidden = false
+        panel.standardWindowButton(.closeButton)?.alphaValue = 1
         panel.alphaValue = 1
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
+    }
+
+    /// Titlebar strip uses the theme background (not pure black).
+    func syncPanelBackground() {
+        applyPanelBackground()
+    }
+
+    private func applyPanelBackground() {
+        guard let panel = contentPanel, let store else { return }
+        panel.backgroundColor = NSColor(store.palette.bg)
     }
 
     func hideContentPanel(force: Bool) {
@@ -258,6 +336,13 @@ final class IslandUIController: NSObject, NSWindowDelegate {
     }
 
     // MARK: - NSWindowDelegate
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender === contentPanel else { return true }
+        // Traffic-light close should always dismiss, even when pinned.
+        hideContentPanel(force: true)
+        return false
+    }
 
     func windowWillClose(_ notification: Notification) {
         if notification.object as? NSPanel === contentPanel {
