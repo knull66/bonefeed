@@ -27,9 +27,14 @@
     e.preventDefault();
     const modal = document.getElementById("pay-modal");
     if (!modal) return;
+    // Keep modal on <body> so position:fixed tracks the viewport, not a transformed ancestor.
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
     modal.hidden = false;
     document.body.classList.add("pay-open");
-    modal.querySelector("[data-close-pay]")?.focus();
+    window.scrollTo({ top: window.scrollY }); // prevent jump
+    modal.querySelector(".pay-close")?.focus();
   };
 
   const closeUsdtModal = () => {

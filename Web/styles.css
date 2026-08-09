@@ -276,7 +276,7 @@ footer {
 }
 
 .site-enter {
-  will-change: opacity, transform, filter;
+  /* Avoid leaving transform/filter containing blocks that break position:fixed modals */
 }
 
 /* Top bar */
@@ -486,15 +486,25 @@ body.pay-open {
 
 .pay-modal {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 120;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1.25rem;
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .pay-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(6px);
@@ -505,6 +515,7 @@ body.pay-open {
   z-index: 1;
   width: min(440px, 100%);
   max-height: min(90vh, 720px);
+  margin: auto;
   overflow: auto;
   padding: 1.4rem 1.35rem 1.25rem;
   background: linear-gradient(180deg, #121214, #0a0a0c);
