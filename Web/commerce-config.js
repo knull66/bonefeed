@@ -15,9 +15,9 @@ window.BONEFEED_COMMERCE = {
   // Must match the deposit network in Binance/OKX (TRC20 recommended)
   usdtNetwork: "TRC20",
   // Paste your Binance/OKX deposit address here (TRC20 starts with T…)
-  usdtAddress: "",
+  usdtAddress: "TJhAMxQ57RGPuxjYo1roB4GQTiNqdFTijG",
   // Where buyers message you after paying (Telegram / mailto / WhatsApp link)
-  contactUrl: "",
+  contactUrl: "https://t.me/vibesdistrict",
   contactLabel: "I paid — contact to unlock",
 
   useLemonOverlay: false,
@@ -25,3 +25,4 @@ window.BONEFEED_COMMERCE = {
   downloadPendingLabel: "Download soon",
   checkoutPendingLabel: "Buy Pro · USDT",
 };
+``
