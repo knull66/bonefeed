@@ -16,6 +16,13 @@
 </head>
 <body class="is-booting">
   <div class="boot" id="boot" role="status" aria-live="polite" aria-busy="true">
+    <div class="boot-fx" aria-hidden="true">
+      <div class="boot-orb"></div>
+      <div class="boot-radar"></div>
+      <div class="boot-radar boot-radar--delay"></div>
+      <div class="boot-scan"></div>
+      <div class="boot-grid"></div>
+    </div>
     <div class="boot-inner">
       <img class="boot-logo" src="assets/logo-blink.webp" alt="" width="140" height="140" />
       <p class="boot-brand">BONEFEED</p>
@@ -30,6 +37,7 @@
   <div class="noise" aria-hidden="true"></div>
   <div class="grid" aria-hidden="true"></div>
 
+  <div class="site-enter">
   <header class="top">
     <a class="brand-mark" href="#">
       <img src="assets/logo-blink.webp" alt="Bonefeed" width="32" height="32" />
@@ -60,69 +68,85 @@
       </div>
 
       <div class="hero-stage" id="notch" aria-label="Bonefeed notch preview">
-        <div class="mac-bar" aria-hidden="true">
-          <span class="mac-left">Finder File Edit View</span>
-          <span class="mac-right">Wi-Fi · 100% · Fri 3:18</span>
-        </div>
-
         <div class="notch-slider" data-notch-slider>
-          <div class="notch-viewport">
-            <div class="notch-track">
-              <div class="notch-slide is-active" data-slide="ticker">
-                <div class="notch-mock">
-                  <div class="notch-pill">
-                    <img class="notch-mark" src="assets/logo-blink.webp" alt="" width="14" height="14" />
-                    <div class="ticker">
-                      <span>ETH $1923 <em>+0.44%</em></span>
-                      <span>SOL $76.27 <em>+3.75%</em></span>
-                      <span>BTC $65.1k <em>+0.2%</em></span>
-                      <span>PORT $130 <em>+0.0%</em></span>
-                    </div>
-                  </div>
-                  <div class="notch-peek">
-                    <div class="peek-row"><span>PORT</span><span>$130.42</span><span class="up">+0.0%</span></div>
-                    <div class="peek-row"><span>BTC</span><span>$65,120</span><span class="up">+0.2%</span></div>
-                    <div class="peek-row"><span>ETH</span><span>$1,923</span><span class="up">+0.4%</span></div>
-                    <p class="peek-hint">Hover the notch · peek markets</p>
-                  </div>
-                </div>
+          <div class="mac-frame">
+            <div class="mac-menubar" aria-hidden="true">
+              <div class="mac-side mac-side--left">
+                <span class="mac-apple"></span>
+                <span class="mac-app">Finder</span>
+                <span>File</span>
+                <span class="mac-hide-sm">Edit</span>
+                <span class="mac-hide-sm">View</span>
               </div>
+              <div class="mac-side mac-side--right">
+                <img class="mac-menubar-bone" src="assets/menu-bonefeed.png" alt="" width="14" height="14" />
+                <span class="mac-status-dot" title="Wi-Fi"></span>
+                <span>100%</span>
+                <span class="mac-clock">Fri 3:18</span>
+              </div>
+              <div class="mac-notch-cutout"></div>
+            </div>
 
-              <div class="notch-slide" data-slide="p2p">
-                <div class="notch-mock notch-mock--p2p">
-                  <div class="notch-pill notch-pill--slim">
-                    <img class="notch-mark" src="assets/logo-blink.webp" alt="" width="14" height="14" />
-                    <div class="ticker">
-                      <span>ETH $1923 <em>+0.44%</em></span>
-                      <span>SOL $76.27 <em>+3.75%</em></span>
-                      <span>BTC $65.1k <em>+0.2%</em></span>
+            <div class="mac-desktop">
+              <div class="notch-viewport">
+                <div class="notch-track">
+                  <div class="notch-slide is-active" data-slide="ticker">
+                    <div class="notch-mock">
+                      <div class="notch-pill">
+                        <img class="notch-mark" src="assets/logo-blink.webp" alt="" width="14" height="14" />
+                        <div class="ticker">
+                          <span>ETH $1923 <em>+0.44%</em></span>
+                          <span>SOL $76.27 <em>+3.75%</em></span>
+                          <span>BTC $65.1k <em>+0.2%</em></span>
+                          <span>PORT $130 <em>+0.0%</em></span>
+                        </div>
+                      </div>
+                      <div class="notch-peek">
+                        <div class="peek-row"><span>PORT</span><span>$130.42</span><span class="up">+0.0%</span></div>
+                        <div class="peek-row"><span>BTC</span><span>$65,120</span><span class="up">+0.2%</span></div>
+                        <div class="peek-row"><span>ETH</span><span>$1,923</span><span class="up">+0.4%</span></div>
+                        <p class="peek-hint">Hover the notch · peek markets</p>
+                      </div>
                     </div>
                   </div>
-                  <div class="notch-p2p-dock">
-                    <span class="dock-p2p">P2P</span>
-                    <span class="dock-sell">SELL</span>
-                    <span class="dock-amt">9.39 USDT</span>
-                    <span class="dock-timer"><span class="dock-clock" aria-hidden="true"></span><span class="dock-time" data-countdown>3:57</span></span>
-                  </div>
-                  <div class="notch-peek notch-peek--card">
-                    <div class="p2p-card-mock">
-                      <div class="p2p-card-top">
-                        <span class="sell">Sell</span>
-                        <span>9.39 USDT</span>
-                        <span class="spacer"></span>
-                        <span class="muted">#LIVE</span>
+
+                  <div class="notch-slide" data-slide="p2p">
+                    <div class="notch-mock notch-mock--p2p">
+                      <div class="notch-pill notch-pill--slim">
+                        <img class="notch-mark" src="assets/logo-blink.webp" alt="" width="14" height="14" />
+                        <div class="ticker">
+                          <span>ETH $1923 <em>+0.44%</em></span>
+                          <span>SOL $76.27 <em>+3.75%</em></span>
+                          <span>BTC $65.1k <em>+0.2%</em></span>
+                        </div>
                       </div>
-                      <p class="p2p-card-status">Pending buyer&apos;s payment…</p>
-                      <div class="p2p-stepper">
-                        <span class="node on">$</span>
-                        <span class="rail"></span>
-                        <span class="node"></span>
-                        <span class="rail"></span>
-                        <span class="node"></span>
+                      <div class="notch-p2p-dock">
+                        <span class="dock-p2p">P2P</span>
+                        <span class="dock-sell">SELL</span>
+                        <span class="dock-amt">9.39 USDT</span>
+                        <span class="dock-timer"><span class="dock-clock" aria-hidden="true"></span><span class="dock-time" data-countdown>3:57</span></span>
                       </div>
-                      <div class="p2p-card-foot">
-                        <strong>Bs 8000 VES</strong>
-                        <span class="dock-timer"><span class="dock-clock"></span><span data-countdown>3:57</span></span>
+                      <div class="notch-peek notch-peek--card">
+                        <div class="p2p-card-mock">
+                          <div class="p2p-card-top">
+                            <span class="sell">Sell</span>
+                            <span>9.39 USDT</span>
+                            <span class="spacer"></span>
+                            <span class="muted">#LIVE</span>
+                          </div>
+                          <p class="p2p-card-status">Pending buyer&apos;s payment…</p>
+                          <div class="p2p-stepper">
+                            <span class="node on">$</span>
+                            <span class="rail"></span>
+                            <span class="node"></span>
+                            <span class="rail"></span>
+                            <span class="node"></span>
+                          </div>
+                          <div class="p2p-card-foot">
+                            <strong>Bs 8000 VES</strong>
+                            <span class="dock-timer"><span class="dock-clock"></span><span data-countdown>3:57</span></span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -143,7 +167,7 @@
               <span class="tab-desc">Don't miss the payment window</span>
             </button>
           </div>
-          <p class="stage-caption" data-notch-caption>Scrolling markets · hover for a quick peek</p>
+          <p class="stage-caption" data-notch-caption>Prices in the notch · hover for a quick peek</p>
         </div>
       </div>
     </section>
@@ -278,7 +302,7 @@
       </div>
       <div class="plan pro">
         <h3>Pro</h3>
-        <p class="price">$14.99 <span>one-time*</span></p>
+        <p class="price">$9.99 <span>one-time*</span></p>
         <ul>
           <li>Binance Spot, Funding, deposits, stream</li>
           <li>Earn + P2P order alerts &amp; live dock</li>
@@ -286,7 +310,7 @@
           <li>All themes · portfolio PnL</li>
         </ul>
         <a class="btn primary" href="#download">Get Bonefeed</a>
-        <p class="fine">* via Mac App Store when live · early access unlock in app for testers</p>
+        <p class="fine">* early Pro price · Mac App Store when live · free tier always available</p>
       </div>
     </section>
 
@@ -347,6 +371,7 @@
       <span>Made by Vibes District</span>
     </a>
   </footer>
+  </div>
 
   <script src="main.js"></script>
 </body>

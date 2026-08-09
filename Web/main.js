@@ -36,7 +36,8 @@
       boot.classList.add("is-done");
       boot.setAttribute("aria-busy", "false");
       document.body.classList.remove("is-booting");
-      window.setTimeout(() => boot.remove(), 600);
+      document.body.classList.add("is-entering");
+      window.setTimeout(() => boot.remove(), 750);
     };
 
     if (reduce) {
