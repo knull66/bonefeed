@@ -459,6 +459,22 @@ nav a:hover {
   font-size: 0.9rem;
 }
 
+.btn.is-pending,
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.download-cta {
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.plan .btn {
+  margin-top: 0.25rem;
+}
+
 /* Notch stage + realistic Mac menubar */
 .hero-stage {
   position: relative;

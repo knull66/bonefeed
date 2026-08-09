@@ -62,8 +62,8 @@
           It alerts. You keep the keys. You make the moves.
         </p>
         <div class="cta-row">
-          <a class="btn primary" href="#download">Download for Mac</a>
-          <a class="btn ghost" href="#notch">See the notch</a>
+          <a class="btn primary" href="#download" data-download data-pending-label="Download soon">Download for Mac</a>
+          <a class="btn ghost" href="#pro" data-checkout data-pending-label="Buy Pro · $9.99">Buy Pro · $9.99</a>
         </div>
       </div>
 
@@ -299,6 +299,7 @@
           <li>1 on-chain wallet</li>
           <li>Themes: Cyber Dim + Mac Dark</li>
         </ul>
+        <a class="btn ghost" href="#download" data-download data-pending-label="Download soon">Download Free</a>
       </div>
       <div class="plan pro">
         <h3>Pro</h3>
@@ -309,8 +310,8 @@
           <li>Unlimited wallets &amp; watchlist</li>
           <li>All themes · portfolio PnL</li>
         </ul>
-        <a class="btn primary" href="#download">Get Bonefeed</a>
-        <p class="fine">* early Pro price · Mac App Store when live · free tier always available</p>
+        <a class="btn primary" href="#pro" data-checkout data-pending-label="Checkout soon">Buy Pro · $9.99</a>
+        <p class="fine">* web checkout via Lemon Squeezy · free tier always available · App Store later</p>
       </div>
     </section>
 
@@ -356,8 +357,12 @@
     <section class="download" id="download">
       <h2>Keep the signal in your notch.</h2>
       <p>Native Swift. Menu-bar only. Built for Apple Silicon &amp; Intel.</p>
-      <a class="btn primary lg" href="#download">Download Bonefeed</a>
-      <p class="fine">DMG / App Store link coming soon · testers: <code>./Scripts/package-app.sh</code> → ~/Applications</p>
+      <div class="cta-row download-cta">
+        <a class="btn primary lg" href="#download" data-download data-pending-label="Download soon">Download Free</a>
+        <a class="btn ghost lg" href="#pro" data-checkout data-pending-label="Buy Pro · $9.99">Buy Pro · $9.99</a>
+      </div>
+      <p class="fine" data-commerce-status>Checkout + DMG links pending — see Support/SHIP_WEB.md</p>
+      <p class="fine">Testers local: <code>./Scripts/package-app.sh</code> → ~/Applications · Ship: <code>./Scripts/notarize.sh</code></p>
     </section>
   </main>
 
@@ -373,6 +378,9 @@
   </footer>
   </div>
 
+  <script src="commerce-config.js"></script>
+  <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
+  <script src="commerce.js" defer></script>
   <script src="main.js"></script>
 </body>
 </html>

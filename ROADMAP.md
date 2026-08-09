@@ -10,15 +10,22 @@
 - [x] Rebrand Chain Island → Bonefeed (`app.bonefeed.macos`)
 - [x] Notch hover morph + peek
 
-## Next (v1 ship)
-1. [ ] Apple Developer Program (annual)
-2. [ ] App Store Connect — Mac app + IAP Non-Consumable `app.bonefeed.macos.pro`
-3. [ ] Code sign + notarize (replace ad-hoc)
-4. [ ] Set `ProLimits.allowLocalUnlock = false` before release
-5. [ ] Sandbox test: Buy + Restore Purchases
-6. [x] Landing page — live at https://bonefeed.netlify.app (download URL still pending DMG/App Store)
-7. [ ] Screenshots + DMG/zip for public download
+## Next (v1 ship — web first)
+Full checklist: `Support/SHIP_WEB.md`
+
+1. [ ] Apple Developer Program (annual) — needed to notarize
+2. [ ] Developer ID sign + notarize + DMG (`./Scripts/notarize.sh`)
+3. [ ] Host DMG → set `Web/commerce-config.js` `downloadUrl`
+4. [ ] Lemon Squeezy product Bonefeed Pro $9.99 → set `checkoutUrl`
+5. [ ] Landing Buy/Download live (wired; waiting on URLs)
+6. [ ] License-key unlock in app (or fulfill Pro manually until then)
+7. [ ] Set `ProLimits.allowLocalUnlock = false` before paid public release
 8. [ ] Closed beta 1–2 weeks (5–10 users with Binance)
+
+## Later — Mac App Store
+1. [ ] App Store Connect — Mac app + IAP Non-Consumable `app.bonefeed.macos.pro`
+2. [ ] Sandbox test: Buy + Restore Purchases
+3. [ ] Screenshots for App Store listing
 
 ## Later (optional)
 - [ ] Setapp
