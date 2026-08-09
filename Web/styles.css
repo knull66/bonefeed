@@ -156,6 +156,22 @@ nav a:hover {
   text-transform: uppercase;
 }
 
+.hero-blink {
+  width: 120px;
+  height: 120px;
+  margin: 0 0 1rem;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.brand-mark img,
+.notch-mark,
+.hero-blink {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 .brand-hero {
   margin: 0;
   font-family: var(--font-display);
