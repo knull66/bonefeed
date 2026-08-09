@@ -27,14 +27,17 @@
     e.preventDefault();
     const modal = document.getElementById("pay-modal");
     if (!modal) return;
-    // Keep modal on <body> so position:fixed tracks the viewport, not a transformed ancestor.
     if (modal.parentElement !== document.body) {
       document.body.appendChild(modal);
     }
     modal.hidden = false;
     document.body.classList.add("pay-open");
-    window.scrollTo({ top: window.scrollY }); // prevent jump
-    modal.querySelector(".pay-close")?.focus();
+    modal.scrollTop = 0;
+    requestAnimationFrame(() => {
+      modal.scrollTop = 0;
+      modal.querySelector(".pay-sheet")?.scrollIntoView({ block: "start", inline: "nearest" });
+    });
+    modal.querySelector(".pay-close")?.focus({ preventScroll: true });
   };
 
   const closeUsdtModal = () => {
@@ -133,6 +136,11 @@
       e.preventDefault();
       closeUsdtModal();
     });
+  });
+
+  // Tap dimmed area (outside sheet) closes modal
+  document.getElementById("pay-modal")?.addEventListener("click", (e) => {
+    if (e.target?.id === "pay-modal") closeUsdtModal();
   });
 
   document.addEventListener("keydown", (e) => {
