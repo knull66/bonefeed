@@ -14,7 +14,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="is-booting">
+  <div class="boot" id="boot" role="status" aria-live="polite" aria-busy="true">
+    <div class="boot-inner">
+      <img class="boot-logo" src="assets/logo-blink.webp" alt="" width="140" height="140" />
+      <p class="boot-brand">BONEFEED</p>
+      <p class="boot-line" data-boot-line>Loading your bags…</p>
+      <div class="boot-bar" aria-hidden="true">
+        <span class="boot-bar-fill" data-boot-fill></span>
+      </div>
+      <p class="boot-pct"><span data-boot-pct>1</span>%</p>
+    </div>
+  </div>
+
   <div class="noise" aria-hidden="true"></div>
   <div class="grid" aria-hidden="true"></div>
 
@@ -36,7 +48,6 @@
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">macOS · notch · watch-only</p>
-        <img class="hero-blink" src="assets/logo-blink.webp" alt="Bonefeed" width="120" height="120" />
         <h1 class="brand-hero" data-text="BONEFEED">BONEFEED</h1>
         <p class="lede">
           Balances, deposits, Earn unlocks, and P2P timers — live in your Mac notch.

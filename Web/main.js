@@ -1,4 +1,73 @@
 (() => {
+  // Boot splash — blinking logo + sarcastic crypto load lines
+  const boot = document.getElementById("boot");
+  if (boot) {
+    const fill = boot.querySelector("[data-boot-fill]");
+    const pctEl = boot.querySelector("[data-boot-pct]");
+    const lineEl = boot.querySelector("[data-boot-line]");
+    const lines = [
+      "Loading your bags…",
+      "Checking if it's still early…",
+      "Syncing hopium levels…",
+      "Asking Binance very politely…",
+      "Watching charts so you don't have to…",
+      "Counting unread Discord signals…",
+      "Warming up the notch…",
+      "Not placing trades. Promise.",
+      "Decrypting FOMO…",
+      "Almost rich. Psych.",
+      "Feeding the skull…",
+    ];
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let pct = 1;
+    let lineIndex = 0;
+    let lineTimer;
+
+    const setLine = (text) => {
+      if (!lineEl) return;
+      lineEl.classList.add("is-swap");
+      window.setTimeout(() => {
+        lineEl.textContent = text;
+        lineEl.classList.remove("is-swap");
+      }, 160);
+    };
+
+    const finish = () => {
+      window.clearInterval(lineTimer);
+      boot.classList.add("is-done");
+      boot.setAttribute("aria-busy", "false");
+      document.body.classList.remove("is-booting");
+      window.setTimeout(() => boot.remove(), 600);
+    };
+
+    if (reduce) {
+      if (pctEl) pctEl.textContent = "100";
+      if (fill) fill.style.width = "100%";
+      setLine("You're in.");
+      window.setTimeout(finish, 200);
+    } else {
+      lineTimer = window.setInterval(() => {
+        lineIndex = (lineIndex + 1) % lines.length;
+        setLine(lines[lineIndex]);
+      }, 700);
+
+      const tick = () => {
+        const step = pct < 40 ? 1 : pct < 75 ? 2 : pct < 92 ? 1 : 3;
+        pct = Math.min(100, pct + step);
+        if (pctEl) pctEl.textContent = String(pct);
+        if (fill) fill.style.width = `${pct}%`;
+        if (pct >= 100) {
+          setLine("You're in.");
+          window.setTimeout(finish, 320);
+          return;
+        }
+        const delay = pct < 30 ? 38 : pct < 70 ? 52 : pct < 90 ? 70 : 90;
+        window.setTimeout(tick, delay);
+      };
+      tick();
+    }
+  }
+
   document.querySelectorAll(".ticker").forEach((el) => {
     el.innerHTML = el.innerHTML + el.innerHTML;
   });

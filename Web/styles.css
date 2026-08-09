@@ -34,6 +34,92 @@ body {
   overflow-x: hidden;
 }
 
+body.is-booting {
+  overflow: hidden;
+}
+
+/* Boot splash */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 40%, rgba(216, 216, 210, 0.08), transparent 60%),
+    #050505;
+  transition: opacity 0.55s ease, visibility 0.55s ease;
+}
+
+.boot.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(280px, 84vw);
+  text-align: center;
+}
+
+.boot-logo {
+  width: 140px;
+  height: 140px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55));
+  margin-bottom: 1rem;
+}
+
+.boot-brand {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  font-size: 0.95rem;
+  color: var(--bone);
+}
+
+.boot-line {
+  margin: 1.1rem 0 0;
+  min-height: 2.6em;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  transition: opacity 0.2s ease;
+}
+
+.boot-line.is-swap {
+  opacity: 0;
+}
+
+.boot-bar {
+  margin-top: 1.15rem;
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.boot-bar-fill {
+  display: block;
+  height: 100%;
+  width: 1%;
+  background: linear-gradient(90deg, var(--cyan), #7ff3ff);
+  transition: width 0.08s linear;
+}
+
+.boot-pct {
+  margin: 0.65rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  color: var(--cyan);
+  font-variant-numeric: tabular-nums;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -156,18 +242,9 @@ nav a:hover {
   text-transform: uppercase;
 }
 
-.hero-blink {
-  width: 120px;
-  height: 120px;
-  margin: 0 0 1rem;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
-}
-
 .brand-mark img,
 .notch-mark,
-.hero-blink {
+.boot-logo {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
