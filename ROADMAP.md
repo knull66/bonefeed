@@ -16,8 +16,8 @@ Full checklist: `Support/SHIP_WEB.md`
 1. [ ] Apple Developer Program (annual) — needed to notarize
 2. [ ] Developer ID sign + notarize + DMG (`./Scripts/notarize.sh`)
 3. [ ] Host DMG → set `Web/commerce-config.js` `downloadUrl`
-4. [ ] Lemon Squeezy product Bonefeed Pro $9.99 → set `checkoutUrl`
-5. [ ] Landing Buy/Download live (wired; waiting on URLs)
+4. [ ] USDT Pro checkout — paste `usdtAddress` + `contactUrl` (`Support/PAY_USDT.md`)
+5. [ ] Landing Buy/Download live (USDT modal wired; waiting on address + DMG)
 6. [ ] License-key unlock in app (or fulfill Pro manually until then)
 7. [ ] Set `ProLimits.allowLocalUnlock = false` before paid public release
 8. [ ] Closed beta 1–2 weeks (5–10 users with Binance)

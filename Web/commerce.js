@@ -2,6 +2,10 @@
   const cfg = window.BONEFEED_COMMERCE || {};
   const downloadUrl = (cfg.downloadUrl || "").trim();
   const checkoutUrl = (cfg.checkoutUrl || "").trim();
+  const usdtAddress = (cfg.usdtAddress || "").trim();
+  const contactUrl = (cfg.contactUrl || "").trim();
+  const provider = (cfg.provider || "usdt").toLowerCase();
+  const isUsdt = provider === "usdt";
 
   const wireDownload = (el) => {
     if (!el) return;
@@ -19,56 +23,134 @@
     el.classList.remove("is-pending");
   };
 
+  const openUsdtModal = (e) => {
+    e.preventDefault();
+    const modal = document.getElementById("pay-modal");
+    if (!modal) return;
+    modal.hidden = false;
+    document.body.classList.add("pay-open");
+    modal.querySelector("[data-close-pay]")?.focus();
+  };
+
+  const closeUsdtModal = () => {
+    const modal = document.getElementById("pay-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.classList.remove("pay-open");
+  };
+
   const openCheckout = (e) => {
+    if (isUsdt) {
+      openUsdtModal(e);
+      return;
+    }
     if (!checkoutUrl) {
       e.preventDefault();
       return;
     }
     if (
-      cfg.provider === "lemonsqueezy" &&
+      provider === "lemonsqueezy" &&
       cfg.useLemonOverlay &&
       window.LemonSqueezy?.Url?.Open
     ) {
       e.preventDefault();
       window.LemonSqueezy.Url.Open(checkoutUrl);
-      return;
     }
-    // Default: navigate / new tab
   };
 
   const wireCheckout = (el) => {
     if (!el) return;
-    if (!checkoutUrl) {
+    const ready = isUsdt ? Boolean(usdtAddress) : Boolean(checkoutUrl);
+    if (!ready) {
       el.classList.add("is-pending");
       el.setAttribute("aria-disabled", "true");
       el.addEventListener("click", (e) => e.preventDefault());
-      if (el.dataset.pendingLabel || cfg.checkoutPendingLabel) {
-        el.textContent = el.dataset.pendingLabel || cfg.checkoutPendingLabel;
-      }
+      const pending = isUsdt
+        ? "Add USDT address"
+        : el.dataset.pendingLabel || cfg.checkoutPendingLabel;
+      el.textContent = pending;
       return;
     }
-    el.href = checkoutUrl;
-    el.target = "_blank";
-    el.rel = "noopener noreferrer";
+
+    el.href = isUsdt ? "#pay" : checkoutUrl;
+    if (!isUsdt) {
+      el.target = "_blank";
+      el.rel = "noopener noreferrer";
+    } else {
+      el.removeAttribute("target");
+    }
     el.removeAttribute("aria-disabled");
     el.classList.remove("is-pending");
+    el.textContent = el.dataset.liveLabel || "Buy Pro · USDT";
     el.addEventListener("click", openCheckout);
   };
+
+  // Fill modal fields
+  const amountEl = document.querySelector("[data-pay-amount]");
+  const networkEl = document.querySelector("[data-pay-network]");
+  const addressEl = document.querySelector("[data-pay-address]");
+  const contactEl = document.querySelector("[data-pay-contact]");
+  const copyBtn = document.querySelector("[data-copy-address]");
+
+  if (amountEl) amountEl.textContent = `${cfg.priceUsdt || "9.99"} USDT`;
+  if (networkEl) networkEl.textContent = cfg.usdtNetwork || "TRC20";
+  if (addressEl) {
+    addressEl.textContent = usdtAddress || "Paste usdtAddress in commerce-config.js";
+  }
+  if (contactEl) {
+    if (contactUrl) {
+      contactEl.href = contactUrl;
+      contactEl.textContent = cfg.contactLabel || "I paid — contact to unlock";
+      contactEl.classList.remove("is-pending");
+    } else {
+      contactEl.href = "#";
+      contactEl.textContent = "Set contactUrl in commerce-config.js";
+      contactEl.classList.add("is-pending");
+      contactEl.addEventListener("click", (e) => e.preventDefault());
+    }
+  }
+
+  copyBtn?.addEventListener("click", async () => {
+    if (!usdtAddress) return;
+    try {
+      await navigator.clipboard.writeText(usdtAddress);
+      copyBtn.textContent = "Copied";
+      window.setTimeout(() => {
+        copyBtn.textContent = "Copy address";
+      }, 1600);
+    } catch {
+      copyBtn.textContent = "Select & copy manually";
+    }
+  });
+
+  document.querySelectorAll("[data-close-pay]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeUsdtModal();
+    });
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeUsdtModal();
+  });
 
   document.querySelectorAll("[data-download]").forEach(wireDownload);
   document.querySelectorAll("[data-checkout]").forEach(wireCheckout);
 
   const status = document.querySelector("[data-commerce-status]");
   if (status) {
-    if (downloadUrl && checkoutUrl) {
-      status.textContent = "Free DMG + Pro checkout live.";
-    } else if (downloadUrl) {
-      status.textContent = "Free download live · Pro checkout coming next.";
-    } else if (checkoutUrl) {
-      status.textContent = "Pro checkout ready · Free DMG hosting pending.";
-    } else {
+    if (isUsdt && usdtAddress && downloadUrl) {
+      status.textContent = "Free DMG + USDT Pro checkout live.";
+    } else if (isUsdt && usdtAddress) {
       status.textContent =
-        "Checkout + DMG links pending — see Support/SHIP_WEB.md";
+        "USDT Pro ready · paste DMG URL when notarized (downloadUrl).";
+    } else if (isUsdt) {
+      status.textContent =
+        "Next: paste usdtAddress + contactUrl in commerce-config.js — Support/PAY_USDT.md";
+    } else if (downloadUrl && checkoutUrl) {
+      status.textContent = "Free DMG + Pro checkout live.";
+    } else {
+      status.textContent = "Checkout + DMG links pending — see Support/PAY_USDT.md";
     }
   }
 })();

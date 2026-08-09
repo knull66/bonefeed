@@ -63,7 +63,7 @@
         </p>
         <div class="cta-row">
           <a class="btn primary" href="#download" data-download data-pending-label="Download soon">Download for Mac</a>
-          <a class="btn ghost" href="#pro" data-checkout data-pending-label="Buy Pro · $9.99">Buy Pro · $9.99</a>
+          <a class="btn ghost" href="#pay" data-checkout data-live-label="Buy Pro · USDT" data-pending-label="Buy Pro · USDT">Buy Pro · USDT</a>
         </div>
       </div>
 
@@ -310,8 +310,8 @@
           <li>Unlimited wallets &amp; watchlist</li>
           <li>All themes · portfolio PnL</li>
         </ul>
-        <a class="btn primary" href="#pro" data-checkout data-pending-label="Checkout soon">Buy Pro · $9.99</a>
-        <p class="fine">* web checkout via Lemon Squeezy · free tier always available · App Store later</p>
+        <a class="btn primary" href="#pay" data-checkout data-live-label="Buy Pro · USDT" data-pending-label="Buy Pro · USDT">Buy Pro · USDT</a>
+        <p class="fine">* pay 9.99 USDT (TRC20) · free tier always available · App Store later</p>
       </div>
     </section>
 
@@ -359,12 +359,43 @@
       <p>Native Swift. Menu-bar only. Built for Apple Silicon &amp; Intel.</p>
       <div class="cta-row download-cta">
         <a class="btn primary lg" href="#download" data-download data-pending-label="Download soon">Download Free</a>
-        <a class="btn ghost lg" href="#pro" data-checkout data-pending-label="Buy Pro · $9.99">Buy Pro · $9.99</a>
+        <a class="btn ghost lg" href="#pay" data-checkout data-live-label="Buy Pro · USDT" data-pending-label="Buy Pro · USDT">Buy Pro · USDT</a>
       </div>
-      <p class="fine" data-commerce-status>Checkout + DMG links pending — see Support/SHIP_WEB.md</p>
+      <p class="fine" data-commerce-status>Checkout + DMG links pending — see Support/PAY_USDT.md</p>
       <p class="fine">Testers local: <code>./Scripts/package-app.sh</code> → ~/Applications · Ship: <code>./Scripts/notarize.sh</code></p>
     </section>
   </main>
+
+  <div class="pay-modal" id="pay-modal" hidden>
+    <div class="pay-backdrop" data-close-pay tabindex="-1"></div>
+    <div class="pay-sheet" role="dialog" aria-modal="true" aria-labelledby="pay-title">
+      <button type="button" class="pay-close" data-close-pay aria-label="Close">✕</button>
+      <p class="eyebrow">Bonefeed Pro</p>
+      <h2 id="pay-title">Pay with USDT</h2>
+      <p class="pay-lede">Send exactly this amount on the network below. Then message us with your tx — we unlock Pro.</p>
+      <div class="pay-row">
+        <span>Amount</span>
+        <strong data-pay-amount>9.99 USDT</strong>
+      </div>
+      <div class="pay-row">
+        <span>Network</span>
+        <strong data-pay-network>TRC20</strong>
+      </div>
+      <div class="pay-address-block">
+        <span>Deposit address</span>
+        <code data-pay-address></code>
+        <button type="button" class="btn ghost" data-copy-address>Copy address</button>
+      </div>
+      <ol class="pay-steps">
+        <li>Open Binance / OKX → Withdraw USDT</li>
+        <li>Pick the <strong>same network</strong> shown above</li>
+        <li>Paste address → send <strong data-pay-amount>9.99 USDT</strong></li>
+        <li>Message us with the tx id to unlock Pro</li>
+      </ol>
+      <a class="btn primary lg pay-contact" data-pay-contact href="#">I paid — contact to unlock</a>
+      <p class="fine">Wrong network = lost funds. Double-check TRC20 vs BEP20.</p>
+    </div>
+  </div>
 
   <footer>
     <div class="footer-brand">
@@ -379,7 +410,6 @@
   </div>
 
   <script src="commerce-config.js"></script>
-  <script src="https://assets.lemonsqueezy.com/lemon.js" defer></script>
   <script src="commerce.js" defer></script>
   <script src="main.js"></script>
 </body>

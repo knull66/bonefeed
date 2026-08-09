@@ -1,19 +1,18 @@
-# Bonefeed — Ship on the web (notarize + Lemon Squeezy)
+# Bonefeed — Ship on the web (notarize + payments)
 
-Goal: sell Free download + Pro ($9.99) from [bonefeed.netlify.app](https://bonefeed.netlify.app), notarized for Gatekeeper, without waiting on Mac App Store.
+Goal: sell Free download + Pro ($9.99 USDT) from [bonefeed.netlify.app](https://bonefeed.netlify.app), notarized for Gatekeeper, without waiting on Mac App Store.
 
-**Recommendation:** Lemon Squeezy first (simpler checkout overlay + tax). Paddle is fine later if you need enterprise invoicing.
+**Payments (VE-friendly):** manual USDT — see **`Support/PAY_USDT.md`** (no company, no Binance Pay Merchant).
 
 ---
 
-## Phase 0 — Money plumbing (1 day)
+## Phase 0 — Money plumbing (USDT, ~30 min)
 
-- [ ] Create [Lemon Squeezy](https://lemonsqueezy.com) account (or Paddle)
-- [ ] Complete store details + payout method
-- [ ] Create product **Bonefeed Pro** — one-time **$9.99** USD
-- [ ] Copy the **Checkout URL** (or overlay buy link)
-- [ ] Paste it into `Web/commerce-config.js` → `checkoutUrl`
-- [ ] Optional: enable **License keys** on the product (needed for in-app unlock later)
+- [ ] Follow `Support/PAY_USDT.md`
+- [ ] Binance/OKX deposit address USDT **TRC20**
+- [ ] Paste into `Web/commerce-config.js` → `usdtAddress` + `contactUrl`
+- [ ] Commit + push
+- [ ] Test **Buy Pro · USDT** modal on the live site
 
 ---
 

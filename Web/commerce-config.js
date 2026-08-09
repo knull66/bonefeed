@@ -1,21 +1,27 @@
-// Bonefeed web commerce — fill these after Lemon Squeezy + notarized DMG are ready.
-// See Support/SHIP_WEB.md
+// Bonefeed web commerce — USDT manual (no company / no Stripe required)
+// Step-by-step: Support/PAY_USDT.md
 window.BONEFEED_COMMERCE = {
-  // "lemonsqueezy" | "paddle"
-  provider: "lemonsqueezy",
+  // "usdt" | "lemonsqueezy" | "paddle" | "stripe"
+  provider: "usdt",
 
-  // Public HTTPS URL to the notarized DMG (GitHub Release, R2, etc.)
-  // Leave empty until the DMG is hosted — Download stays disabled.
+  // Public HTTPS URL to the notarized DMG (leave empty until hosted)
   downloadUrl: "",
 
-  // Lemon Squeezy or Paddle checkout / pay link for Bonefeed Pro ($9.99)
-  // Leave empty until the store product exists — Buy Pro stays disabled.
+  // Ignored when provider is "usdt" (modal is used instead)
   checkoutUrl: "",
 
-  // true = open Lemon.js overlay when provider is lemonsqueezy
-  useLemonOverlay: true,
+  // --- USDT manual checkout ---
+  priceUsdt: "9.99",
+  // Must match the deposit network in Binance/OKX (TRC20 recommended)
+  usdtNetwork: "TRC20",
+  // Paste your Binance/OKX deposit address here (TRC20 starts with T…)
+  usdtAddress: "",
+  // Where buyers message you after paying (Telegram / mailto / WhatsApp link)
+  contactUrl: "",
+  contactLabel: "I paid — contact to unlock",
 
-  // Shown on buttons while URLs are empty
+  useLemonOverlay: false,
+
   downloadPendingLabel: "Download soon",
-  checkoutPendingLabel: "Checkout soon",
+  checkoutPendingLabel: "Buy Pro · USDT",
 };
