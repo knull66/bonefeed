@@ -115,6 +115,14 @@ enum L10n {
         "vip.gate": "VIP Signals unlocks the tight desk. Still watch-only — never places trades.",
         "vip.seePlan": "See VIP plan",
 
+        "signals.blurb": "Not a crystal ball — an early-warning desk. When a coin crosses your threshold, you get the ping. You decide.",
+        "signals.nearHelp": "Bar fills as 24h move approaches the desk trigger.",
+        "signals.calm": "Desk calm — nothing at trigger yet.",
+        "signals.disclaimer": "Watch-only. Not financial advice. Does not predict or place trades.",
+        "signals.openDesk": "Open SIGNAL desk →",
+        "signals.openDeskLocked": "Open SIGNAL desk (VIP tight) →",
+        "signals.vipUpsell": "Standard desk uses ±5%. VIP tightens to ±2.5% + earlier fees.",
+
         // General
         "general.system": "System",
         "general.launchAtLogin": "Launch at Login",
@@ -444,6 +452,14 @@ You can clear Binance credentials anytime in Settings → Binance → Clear.
         "vip.deskHelp": "On: ±2.5% y fee desk. Off: usa los umbrales Free/Pro de abajo.",
         "vip.gate": "VIP Signals desbloquea el desk tight. Sigue watch-only — nunca coloca trades.",
         "vip.seePlan": "Ver plan VIP",
+
+        "signals.blurb": "No es bola de cristal — es un desk de alerta temprana. Cuando una moneda cruza tu umbral, te llega el ping. Tú decides.",
+        "signals.nearHelp": "La barra se llena cuando el move 24h se acerca al trigger del desk.",
+        "signals.calm": "Desk calm — nada en trigger todavía.",
+        "signals.disclaimer": "Watch-only. No es consejo financiero. No predice ni coloca trades.",
+        "signals.openDesk": "Abrir desk SIGNAL →",
+        "signals.openDeskLocked": "Abrir desk SIGNAL (VIP tight) →",
+        "signals.vipUpsell": "Desk standard usa ±5%. VIP aprieta a ±2.5% + fees antes.",
 
         "general.system": "Sistema",
         "general.launchAtLogin": "Abrir al iniciar sesión",

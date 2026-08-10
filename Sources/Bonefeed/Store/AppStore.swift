@@ -257,6 +257,7 @@ final class AppStore {
 
     enum RadarSubTab: String, CaseIterable, Identifiable {
         case overview
+        case signals
         case p2p
 
         var id: String { rawValue }
@@ -264,8 +265,28 @@ final class AppStore {
         var title: String {
             switch self {
             case .overview: "OVERVIEW"
+            case .signals: "SIGNALS"
             case .p2p: "P2P"
             }
+        }
+    }
+
+    /// Thresholds the VIP / Free desk is currently using for display.
+    var signalDeskThresholds: AlertThresholds {
+        thresholds.forSignalDesk(isVIP: isVIP)
+    }
+
+    /// How close a 24h move is to the active pump/dump desk (0…1+, >1 = fired).
+    func signalProximity(change24h: Double) -> (side: String, progress: Double, fired: Bool) {
+        let desk = signalDeskThresholds
+        if change24h >= 0 {
+            let limit = max(0.1, desk.pnlPumpPercent)
+            let progress = change24h / limit
+            return ("PUMP", progress, change24h >= limit)
+        } else {
+            let limit = min(-0.1, desk.pnlDropPercent)
+            let progress = change24h / limit // both negative → positive ratio
+            return ("DUMP", progress, change24h <= limit)
         }
     }
 
