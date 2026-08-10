@@ -5,23 +5,43 @@
   ],
   "products" : [
     {
-      "displayPrice" : "14.99",
+      "displayPrice" : "9.99",
       "familyShareable" : false,
       "internalID" : "A1B2C3D4E5F60718",
       "localizations" : [
         {
-          "description" : "Unlock Binance Spot & Earn, unlimited wallets, all themes, and portfolio PnL.",
+          "description" : "Unlock Binance Spot & Earn, P2P alerts, unlimited wallets, all themes, and portfolio PnL.",
           "displayName" : "Bonefeed Pro",
           "locale" : "en_US"
         },
         {
-          "description" : "Desbloquea Binance Spot y Earn, wallets ilimitadas, todos los temas y PnL.",
+          "description" : "Desbloquea Binance Spot y Earn, alertas P2P, wallets ilimitadas, todos los temas y PnL.",
           "displayName" : "Bonefeed Pro",
           "locale" : "es_ES"
         }
       ],
       "productID" : "app.bonefeed.macos.pro",
       "referenceName" : "Bonefeed Pro",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "B2C3D4E5F6071829",
+      "localizations" : [
+        {
+          "description" : "Tight VIP signal desk (±2.5% pump/dump, earlier fee alerts). Includes Pro. Watch-only — never trades.",
+          "displayName" : "Bonefeed VIP Signals",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "Desk VIP de señales (±2.5% pump/dump, fees antes). Incluye Pro. Watch-only — nunca opera.",
+          "displayName" : "Bonefeed VIP Signals",
+          "locale" : "es_ES"
+        }
+      ],
+      "productID" : "app.bonefeed.macos.vip",
+      "referenceName" : "Bonefeed VIP Signals",
       "type" : "NonConsumable"
     }
   ],

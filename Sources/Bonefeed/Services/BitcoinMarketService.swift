@@ -24,7 +24,8 @@ actor BitcoinMarketService {
     func fetchRadar(
         wallets: [WatchedWallet],
         thresholds: AlertThresholds,
-        watchAssets: [String]
+        watchAssets: [String],
+        vipDesk: Bool = false
     ) async -> RadarPollResult {
         loadBaselinesIfNeeded()
 
@@ -102,11 +103,13 @@ actor BitcoinMarketService {
 
             var signals: [MarketSignal] = []
 
+            let vipTag = vipDesk ? "VIP · " : ""
+
             if thresholds.feeAlertsEnabled, feeLevel == .high {
                 let signal = MarketSignal(
-                    id: "fee-high",
+                    id: vipDesk ? "vip-fee-high" : "fee-high",
                     kind: .feeHigh,
-                    title: L10n.t("signal.feesHigh"),
+                    title: "\(vipTag)\(L10n.t("signal.feesHigh"))",
                     detail: String(format: "%.0f sat/vB", feeRate)
                 )
                 signals.append(signal)
@@ -114,7 +117,7 @@ actor BitcoinMarketService {
                     IslandAlert(
                         id: UUID(),
                         kind: .gas,
-                        title: L10n.t("signal.btcFees"),
+                        title: "\(vipTag)\(L10n.t("signal.btcFees"))",
                         detail: signal.detail,
                         createdAt: .now,
                         isRead: false
@@ -126,9 +129,9 @@ actor BitcoinMarketService {
                 for tick in ticks where thresholds.allowsSignal(for: tick.symbol) {
                     if tick.change24hPercent <= thresholds.pnlDropPercent {
                         let signal = MarketSignal(
-                            id: "\(tick.symbol.lowercased())-dump",
+                            id: "\(vipDesk ? "vip-" : "")\(tick.symbol.lowercased())-dump",
                             kind: .dump,
-                            title: "\(tick.symbol) \(L10n.t("signal.dump"))",
+                            title: "\(vipTag)\(tick.symbol) \(L10n.t("signal.dump"))",
                             detail: String(format: "%+.2f%% (≤ %.0f%%)", tick.change24hPercent, thresholds.pnlDropPercent)
                         )
                         signals.append(signal)
@@ -136,7 +139,7 @@ actor BitcoinMarketService {
                             IslandAlert(
                                 id: UUID(),
                                 kind: .pnl,
-                                title: String(format: L10n.t("signal.signalDump"), tick.symbol),
+                                title: "\(vipTag)\(String(format: L10n.t("signal.signalDump"), tick.symbol))",
                                 detail: signal.detail,
                                 createdAt: .now,
                                 isRead: false
@@ -144,9 +147,9 @@ actor BitcoinMarketService {
                         )
                     } else if tick.change24hPercent >= thresholds.pnlPumpPercent {
                         let signal = MarketSignal(
-                            id: "\(tick.symbol.lowercased())-pump",
+                            id: "\(vipDesk ? "vip-" : "")\(tick.symbol.lowercased())-pump",
                             kind: .pump,
-                            title: "\(tick.symbol) \(L10n.t("signal.pump"))",
+                            title: "\(vipTag)\(tick.symbol) \(L10n.t("signal.pump"))",
                             detail: String(format: "%+.2f%% (≥ +%.0f%%)", tick.change24hPercent, thresholds.pnlPumpPercent)
                         )
                         signals.append(signal)
@@ -154,7 +157,7 @@ actor BitcoinMarketService {
                             IslandAlert(
                                 id: UUID(),
                                 kind: .pnl,
-                                title: String(format: L10n.t("signal.signalPump"), tick.symbol),
+                                title: "\(vipTag)\(String(format: L10n.t("signal.signalPump"), tick.symbol))",
                                 detail: signal.detail,
                                 createdAt: .now,
                                 isRead: false

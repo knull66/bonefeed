@@ -345,6 +345,8 @@ struct AlertThresholds: Codable, Sendable, Equatable {
     var p2pAlertsEnabled: Bool
     /// Empty = Auto (all fiats). Otherwise ISO fiat code e.g. COP.
     var p2pFiat: String
+    /// VIP: use tight signal desk (±2.5% / lower fee) instead of Free/Pro thresholds.
+    var vipDeskEnabled: Bool
 
     static let `default` = AlertThresholds(
         feeHigh: 40,
@@ -360,7 +362,8 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         healthAlertsEnabled: true,
         healthFactorWarn: 1.5,
         p2pAlertsEnabled: true,
-        p2pFiat: ""
+        p2pFiat: "",
+        vipDeskEnabled: true
     )
 
     init(
@@ -377,7 +380,8 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         healthAlertsEnabled: Bool,
         healthFactorWarn: Double,
         p2pAlertsEnabled: Bool = true,
-        p2pFiat: String = ""
+        p2pFiat: String = "",
+        vipDeskEnabled: Bool = true
     ) {
         self.feeHigh = feeHigh
         self.pnlDropPercent = pnlDropPercent
@@ -393,6 +397,7 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         self.healthFactorWarn = healthFactorWarn
         self.p2pAlertsEnabled = p2pAlertsEnabled
         self.p2pFiat = p2pFiat
+        self.vipDeskEnabled = vipDeskEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -411,6 +416,7 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         healthFactorWarn = try c.decodeIfPresent(Double.self, forKey: .healthFactorWarn) ?? Self.default.healthFactorWarn
         p2pAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .p2pAlertsEnabled) ?? Self.default.p2pAlertsEnabled
         p2pFiat = try c.decodeIfPresent(String.self, forKey: .p2pFiat) ?? Self.default.p2pFiat
+        vipDeskEnabled = try c.decodeIfPresent(Bool.self, forKey: .vipDeskEnabled) ?? Self.default.vipDeskEnabled
     }
 
     func allowsSignal(for symbol: String) -> Bool {
@@ -427,6 +433,19 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         }
         // Wraps midnight: e.g. 23 → 8
         return hour >= quietHoursStart || hour < quietHoursEnd
+    }
+
+    /// Thresholds actually used when generating market signals.
+    func forSignalDesk(isVIP: Bool) -> AlertThresholds {
+        guard isVIP, vipDeskEnabled else { return self }
+        var tight = self
+        tight.pnlPumpPercent = ProLimits.vipPumpPercent
+        tight.pnlDropPercent = ProLimits.vipDumpPercent
+        tight.feeHigh = ProLimits.vipFeeHigh
+        tight.feeAlertsEnabled = true
+        tight.pnlAlertsEnabled = true
+        tight.cooldownMinutes = min(cooldownMinutes, ProLimits.vipCooldownMinutes)
+        return tight
     }
 }
 

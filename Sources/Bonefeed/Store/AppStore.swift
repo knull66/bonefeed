@@ -43,8 +43,10 @@ final class AppStore {
 
     /// Local mirror of StoreKit entitlement for SwiftUI + gating.
     var isProUnlocked: Bool = false
+    var isVIPUnlocked: Bool = false
 
     var isPro: Bool { isProUnlocked }
+    var isVIP: Bool { isVIPUnlocked }
 
     let proStore = ProStore.shared
 
@@ -53,6 +55,7 @@ final class AppStore {
     func syncProStatus() {
         let wasPro = isProUnlocked
         isProUnlocked = proStore.isPro
+        isVIPUnlocked = proStore.isVIP
         if !isProUnlocked {
             if !ProStore.isThemeAllowed(appTheme, isPro: false) {
                 appTheme = .cyberDark
@@ -75,6 +78,14 @@ final class AppStore {
         if ok { await refresh(force: true) }
     }
 
+    func purchaseVIP() async {
+        proMessage = t("vip.purchasing")
+        let ok = await proStore.purchaseVIP()
+        syncProStatus()
+        proMessage = ok ? t("vip.unlocked") : (proStore.lastError ?? t("vip.purchaseFailed"))
+        if ok { await refresh(force: true) }
+    }
+
     func restorePro() async {
         proMessage = t("pro.restoring")
         let ok = await proStore.restore()
@@ -87,6 +98,13 @@ final class AppStore {
         proStore.unlockLocal()
         syncProStatus()
         proMessage = t("pro.unlockedDebug")
+        Task { await refresh(force: true) }
+    }
+
+    func unlockVIPLocal() {
+        proStore.unlockVIPLocal()
+        syncProStatus()
+        proMessage = t("vip.unlockedDebug")
         Task { await refresh(force: true) }
     }
 
@@ -108,6 +126,13 @@ final class AppStore {
             return "\(t("pro.buy")) — \(price)"
         }
         return t("pro.buy")
+    }
+
+    var vipBuyLabel: String {
+        if let price = proStore.vipPriceText {
+            return "\(t("vip.buy")) — \(price)"
+        }
+        return t("vip.buy")
     }
 
     /// When true, next panel open skips boot splash (e.g. reopen guide).
@@ -518,10 +543,12 @@ final class AppStore {
             }
         }
 
+        let signalThresholds = thresholds.forSignalDesk(isVIP: isVIP)
         let result = await market.fetchRadar(
             wallets: watchedWallets,
-            thresholds: thresholds,
-            watchAssets: watchedAssets
+            thresholds: signalThresholds,
+            watchAssets: watchedAssets,
+            vipDesk: isVIP && thresholds.vipDeskEnabled
         )
         var snap = result.snapshot
         var extraAlerts = result.snapshot.alerts
@@ -858,6 +885,12 @@ final class AppStore {
         persistThresholds()
         knownSignatures.removeAll()
         Task { await refresh() }
+    }
+
+    func setVIPDeskEnabled(_ enabled: Bool) {
+        var next = thresholds
+        next.vipDeskEnabled = enabled
+        updateThresholds(next)
     }
 
     func setPnLAlertsEnabled(_ enabled: Bool) {
@@ -1564,7 +1597,13 @@ final class AppStore {
             return false
         }
 
-        let cooldown = TimeInterval(max(5, thresholds.cooldownMinutes) * 60)
+        let minutes: Int = {
+            if isVIP, thresholds.vipDeskEnabled {
+                return min(max(5, thresholds.cooldownMinutes), ProLimits.vipCooldownMinutes)
+            }
+            return max(5, thresholds.cooldownMinutes)
+        }()
+        let cooldown = TimeInterval(minutes * 60)
         notifyCooldownUntil[signature] = now.addingTimeInterval(cooldown)
         return true
     }

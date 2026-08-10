@@ -1,7 +1,7 @@
 import Foundation
 import StoreKit
 
-/// Free vs Pro gates + StoreKit 2 purchase for Bonefeed Pro (non-consumable).
+/// Free vs Pro vs VIP gates + StoreKit 2 purchases (non-consumable).
 enum ProLimits {
     static let freeWalletCap = 1
     static let freeWatchlistCap = 3
@@ -9,9 +9,16 @@ enum ProLimits {
 
     /// Must match App Store Connect + Products.storekit.
     static let storeProductID = Brand.proProductID
+    static let vipProductID = Brand.vipProductID
 
     /// Local unlock for pre-App Store builds. Set to `false` before Mac App Store release.
     static let allowLocalUnlock = true
+
+    /// VIP desk defaults — tighter than Free/Pro watchlist signals.
+    static let vipPumpPercent: Double = 2.5
+    static let vipDumpPercent: Double = -2.5
+    static let vipFeeHigh: Double = 25
+    static let vipCooldownMinutes: Int = 15
 }
 
 extension Notification.Name {
@@ -23,15 +30,22 @@ extension Notification.Name {
 final class ProStore {
     static let shared = ProStore()
 
+    /// Pro radar (Binance / limits / themes). True if Pro **or** VIP purchased.
     private(set) var isPro = false
+    /// VIP Signals desk (tight market alerts). Implies Pro.
+    private(set) var isVIP = false
+
     private(set) var product: Product?
+    private(set) var vipProduct: Product?
     private(set) var priceText: String?
+    private(set) var vipPriceText: String?
     private(set) var isPurchasing = false
     private(set) var isRefreshing = false
     private(set) var lastError: String?
 
     private var updatesTask: Task<Void, Never>?
     private let debugUnlockKey = "bonefeed.proDebugUnlock"
+    private let debugVIPUnlockKey = "bonefeed.vipDebugUnlock"
 
     private init() {}
 
@@ -51,16 +65,23 @@ final class ProStore {
 
     func loadProduct() async {
         do {
-            let products = try await Product.products(for: [ProLimits.storeProductID])
-            product = products.first
-            priceText = products.first?.displayPrice
-            lastError = products.isEmpty
-                ? "Product unavailable (check App Store Connect / StoreKit config)."
+            let products = try await Product.products(for: [
+                ProLimits.storeProductID,
+                ProLimits.vipProductID,
+            ])
+            product = products.first(where: { $0.id == ProLimits.storeProductID })
+            vipProduct = products.first(where: { $0.id == ProLimits.vipProductID })
+            priceText = product?.displayPrice
+            vipPriceText = vipProduct?.displayPrice
+            lastError = product == nil && vipProduct == nil
+                ? "Products unavailable (check App Store Connect / StoreKit config)."
                 : nil
         } catch {
             lastError = error.localizedDescription
             product = nil
+            vipProduct = nil
             priceText = nil
+            vipPriceText = nil
         }
     }
 
@@ -68,19 +89,27 @@ final class ProStore {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        var entitled = false
+        var entitledPro = false
+        var entitledVIP = false
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
-            if transaction.productID == ProLimits.storeProductID,
-               transaction.revocationDate == nil {
-                entitled = true
-                break
+            guard transaction.revocationDate == nil else { continue }
+            if transaction.productID == ProLimits.vipProductID {
+                entitledVIP = true
+                entitledPro = true
+            } else if transaction.productID == ProLimits.storeProductID {
+                entitledPro = true
             }
         }
 
-        if ProLimits.allowLocalUnlock,
-           UserDefaults.standard.bool(forKey: debugUnlockKey) {
-            entitled = true
+        if ProLimits.allowLocalUnlock {
+            if UserDefaults.standard.bool(forKey: debugVIPUnlockKey) {
+                entitledVIP = true
+                entitledPro = true
+            }
+            if UserDefaults.standard.bool(forKey: debugUnlockKey) {
+                entitledPro = true
+            }
         }
 
         // Migrate legacy early-access flag once (pre-StoreKit builds).
@@ -88,25 +117,37 @@ final class ProStore {
         if UserDefaults.standard.bool(forKey: legacyKey) {
             if ProLimits.allowLocalUnlock {
                 UserDefaults.standard.set(true, forKey: debugUnlockKey)
-                entitled = true
+                entitledPro = true
             }
             UserDefaults.standard.removeObject(forKey: legacyKey)
         }
 
-        let changed = isPro != entitled
-        isPro = entitled
+        let changed = isPro != entitledPro || isVIP != entitledVIP
+        isPro = entitledPro
+        isVIP = entitledVIP
         if changed {
             NotificationCenter.default.post(name: .bonefeedProStatusChanged, object: nil)
         }
     }
 
     func purchase() async -> Bool {
+        await purchase(productID: ProLimits.storeProductID)
+    }
+
+    func purchaseVIP() async -> Bool {
+        await purchase(productID: ProLimits.vipProductID)
+    }
+
+    private func purchase(productID: String) async -> Bool {
         lastError = nil
-        if product == nil {
+        if product == nil || vipProduct == nil {
             await loadProduct()
         }
-        guard let product else {
-            lastError = "Bonefeed Pro is not available yet from the App Store."
+        let target = productID == ProLimits.vipProductID ? vipProduct : product
+        guard let target else {
+            lastError = productID == ProLimits.vipProductID
+                ? "Bonefeed VIP is not available yet from the App Store."
+                : "Bonefeed Pro is not available yet from the App Store."
             return false
         }
 
@@ -114,13 +155,13 @@ final class ProStore {
         defer { isPurchasing = false }
 
         do {
-            let result = try await product.purchase()
+            let result = try await target.purchase()
             switch result {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
                 await refreshEntitlements()
-                return isPro
+                return productID == ProLimits.vipProductID ? isVIP : isPro
             case .userCancelled:
                 lastError = nil
                 return false
@@ -145,10 +186,10 @@ final class ProStore {
         do {
             try await StoreKit.AppStore.sync()
             await refreshEntitlements()
-            if !isPro {
-                lastError = "No Pro purchase found for this Apple ID."
+            if !isPro && !isVIP {
+                lastError = "No Pro / VIP purchase found for this Apple ID."
             }
-            return isPro
+            return isPro || isVIP
         } catch {
             lastError = error.localizedDescription
             return false
@@ -162,8 +203,18 @@ final class ProStore {
         NotificationCenter.default.post(name: .bonefeedProStatusChanged, object: nil)
     }
 
+    func unlockVIPLocal() {
+        guard ProLimits.allowLocalUnlock else { return }
+        UserDefaults.standard.set(true, forKey: debugVIPUnlockKey)
+        UserDefaults.standard.set(true, forKey: debugUnlockKey)
+        isVIP = true
+        isPro = true
+        NotificationCenter.default.post(name: .bonefeedProStatusChanged, object: nil)
+    }
+
     func lockLocal() {
         UserDefaults.standard.set(false, forKey: debugUnlockKey)
+        UserDefaults.standard.set(false, forKey: debugVIPUnlockKey)
         Task { await refreshEntitlements() }
     }
 
@@ -174,7 +225,8 @@ final class ProStore {
     private func handle(_ result: VerificationResult<Transaction>) async {
         do {
             let transaction = try checkVerified(result)
-            if transaction.productID == ProLimits.storeProductID {
+            if transaction.productID == ProLimits.storeProductID
+                || transaction.productID == ProLimits.vipProductID {
                 await transaction.finish()
                 await refreshEntitlements()
             }

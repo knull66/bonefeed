@@ -1507,7 +1507,7 @@ body.pay-open {
 
 .pricing {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.25rem;
   border-top: 1px solid var(--line);
 }
@@ -1520,9 +1520,16 @@ body.pay-open {
 }
 
 .plan.pro {
-  border-color: rgba(57, 231, 255, 0.35);
+  border-color: rgba(57, 231, 255, 0.28);
   background:
-    linear-gradient(180deg, rgba(57, 231, 255, 0.06), transparent 40%),
+    linear-gradient(180deg, rgba(57, 231, 255, 0.05), transparent 40%),
+    var(--panel);
+}
+
+.plan.vip {
+  border-color: rgba(255, 214, 71, 0.45);
+  background:
+    linear-gradient(180deg, rgba(255, 214, 71, 0.08), transparent 42%),
     var(--panel);
 }
 
@@ -1674,13 +1681,18 @@ footer {
   color: var(--bone);
 }
 
+@media (max-width: 960px) {
+  .pricing {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 760px) {
   nav a:not(.nav-cta) {
     display: none;
   }
 
   .features,
-  .pricing,
   .panel-showcase {
     grid-template-columns: 1fr;
   }

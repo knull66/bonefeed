@@ -12,6 +12,7 @@ window.BONEFEED_COMMERCE = {
 
   // --- USDT manual checkout ---
   priceUsdt: "9.99",
+  priceVipUsdt: "14.99",
   // Must match the deposit network in Binance/OKX (TRC20 recommended)
   usdtNetwork: "TRC20",
   // Paste your Binance/OKX deposit address here (TRC20 starts with T…)

@@ -19,4 +19,6 @@ enum Brand {
     /// Bundle / IAP identifiers (Mac App Store).
     static let bundleID = "app.bonefeed.macos"
     static let proProductID = "app.bonefeed.macos.pro"
+    /// VIP Signals desk (includes Pro entitlements).
+    static let vipProductID = "app.bonefeed.macos.vip"
 }

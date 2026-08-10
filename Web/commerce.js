@@ -23,6 +23,21 @@
     el.classList.remove("is-pending");
   };
 
+  const applyPayTier = (tier) => {
+    const isVip = tier === "vip";
+    const amount = isVip
+      ? cfg.priceVipUsdt || "14.99"
+      : cfg.priceUsdt || "9.99";
+    const label = `${amount} USDT`;
+    document.querySelectorAll("[data-pay-amount]").forEach((el) => {
+      el.textContent = label;
+    });
+    const title = document.getElementById("pay-title");
+    const eyebrow = document.querySelector("#pay-modal .eyebrow");
+    if (title) title.textContent = isVip ? "Pay VIP with USDT" : "Pay with USDT";
+    if (eyebrow) eyebrow.textContent = isVip ? "Bonefeed VIP Signals" : "Bonefeed Pro";
+  };
+
   const openUsdtModal = (e) => {
     e.preventDefault();
     const modal = document.getElementById("pay-modal");
@@ -30,6 +45,8 @@
     if (modal.parentElement !== document.body) {
       document.body.appendChild(modal);
     }
+    const tier = e.currentTarget?.dataset?.tier || "pro";
+    applyPayTier(tier);
     modal.hidden = false;
     document.body.classList.add("pay-open");
     modal.scrollTop = 0;

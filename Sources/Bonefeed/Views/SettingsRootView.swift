@@ -498,13 +498,13 @@ private struct ProSettingsPane: View {
 
                 GroupBox {
                     HStack(spacing: 12) {
-                        Image(systemName: store.isPro ? "checkmark.seal.fill" : "lock.fill")
+                        Image(systemName: store.isVIP ? "bolt.badge.checkmark.fill" : (store.isPro ? "checkmark.seal.fill" : "lock.fill"))
                             .font(.title2)
-                            .foregroundStyle(store.isPro ? p.cool : p.warn)
+                            .foregroundStyle(store.isVIP ? p.warn : (store.isPro ? p.cool : p.warn))
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(store.isPro ? store.t("pro.status.pro") : store.t("pro.status.free"))
+                            Text(store.isVIP ? store.t("vip.status") : (store.isPro ? store.t("pro.status.pro") : store.t("pro.status.free")))
                                 .font(.headline)
-                            Text(store.isPro ? store.t("pro.status.proDetail") : store.t("pro.status.freeDetail"))
+                            Text(store.isVIP ? store.t("vip.statusDetail") : (store.isPro ? store.t("pro.status.proDetail") : store.t("pro.status.freeDetail")))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -537,11 +537,46 @@ private struct ProSettingsPane: View {
                     .padding(4)
                 }
 
-                if store.isPro {
+                GroupBox(store.t("vip.title")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(store.t("vip.blurb"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        bullet(store.t("vip.1"))
+                        bullet(store.t("vip.2"))
+                        bullet(store.t("vip.3"))
+                        bullet(store.t("vip.4"))
+                        bullet(store.t("vip.5"))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(4)
+                }
+
+                if store.isVIP {
+                    Text(store.t("vip.statusDetail"))
+                        .font(.callout)
+                        .foregroundStyle(p.warn)
+                    if ProLimits.allowLocalUnlock {
+                        Button(store.t("pro.lockTest")) {
+                            store.lockProLocal()
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                } else if store.isPro {
                     Text(store.t("pro.thanks"))
                         .font(.callout)
                         .foregroundStyle(p.cool)
+                    Button {
+                        Task { await store.purchaseVIP() }
+                    } label: {
+                        Text(store.vipBuyLabel)
+                    }
+                    .disabled(store.proStore.isPurchasing)
                     if ProLimits.allowLocalUnlock {
+                        Button(store.t("vip.unlockDebug")) {
+                            store.unlockVIPLocal()
+                        }
+                        .foregroundStyle(.secondary)
                         Button(store.t("pro.lockTest")) {
                             store.lockProLocal()
                         }
@@ -556,6 +591,13 @@ private struct ProSettingsPane: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(store.proStore.isPurchasing)
 
+                    Button {
+                        Task { await store.purchaseVIP() }
+                    } label: {
+                        Text(store.vipBuyLabel)
+                    }
+                    .disabled(store.proStore.isPurchasing)
+
                     Button(store.t("pro.restore")) {
                         Task { await store.restorePro() }
                     }
@@ -568,6 +610,10 @@ private struct ProSettingsPane: View {
                     if ProLimits.allowLocalUnlock {
                         Button(store.t("pro.unlockDebug")) {
                             store.unlockProLocal()
+                        }
+                        .foregroundStyle(.secondary)
+                        Button(store.t("vip.unlockDebug")) {
+                            store.unlockVIPLocal()
                         }
                         .foregroundStyle(.secondary)
                         Text(store.t("pro.debugNote"))
@@ -667,6 +713,42 @@ private struct AlertsSettingsPane: View {
                         }
                         Button(store.t("alerts.test")) {
                             store.testNotification()
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(4)
+            }
+
+            GroupBox(store.t("vip.title")) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if store.isVIP {
+                        Toggle(store.t("vip.deskToggle"), isOn: Binding(
+                            get: { store.thresholds.vipDeskEnabled },
+                            set: { store.setVIPDeskEnabled($0) }
+                        ))
+                        Text(store.t("vip.deskHelp"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text("±\(String(format: "%.1f", ProLimits.vipPumpPercent))% · fee \(String(format: "%.0f", ProLimits.vipFeeHigh)) sat · \(ProLimits.vipCooldownMinutes) min")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(store.t("vip.gate"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(store.vipBuyLabel) {
+                            Task { await store.purchaseVIP() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(store.proStore.isPurchasing)
+                        if ProLimits.allowLocalUnlock {
+                            Button(store.t("vip.unlockDebug")) {
+                                store.unlockVIPLocal()
+                            }
+                            .controlSize(.small)
+                            .foregroundStyle(.secondary)
                         }
                     }
                 }
