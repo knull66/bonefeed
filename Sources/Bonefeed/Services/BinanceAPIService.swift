@@ -507,6 +507,40 @@ actor BinanceAPIService {
         }
     }
 
+    /// Best marketplace ad price for asset/fiat/side (watch-only). Nil if unavailable.
+    func fetchP2PBestAdPrice(
+        credentials: BinanceCredentials,
+        asset: String,
+        fiat: String,
+        tradeType: String
+    ) async -> Double? {
+        let params: [String: String] = [
+            "asset": asset.uppercased(),
+            "fiat": fiat.uppercased(),
+            "tradeType": tradeType.uppercased(),
+            "page": "1",
+            "rows": "5"
+        ]
+        do {
+            let data = try await signedPOST(
+                path: "/sapi/v1/c2c/ads/search",
+                params: params,
+                credentials: credentials
+            )
+            if let wrapped = try? JSONDecoder().decode(C2CAdsResponse.self, from: data) {
+                let prices = (wrapped.data ?? []).compactMap { row -> Double? in
+                    Double(row.adv?.price ?? "")
+                }
+                guard !prices.isEmpty else { return nil }
+                // BUY = you buy crypto → highest ask is worst; take first/best list order (Binance sorts).
+                return tradeType.uppercased() == "BUY" ? prices.min() : prices.max()
+            }
+            return nil
+        } catch {
+            return nil
+        }
+    }
+
     /// Personal P2P / C2C order history (last ~30 days if no time range). Watch-only.
     func fetchP2POrderHistory(
         credentials: BinanceCredentials,
@@ -739,6 +773,18 @@ private struct DepositResponse: Decodable {
 
 private struct C2CHistoryResponse: Decodable {
     let data: [C2COrderRow]?
+}
+
+private struct C2CAdsResponse: Decodable {
+    let data: [C2CAdRow]?
+}
+
+private struct C2CAdRow: Decodable {
+    let adv: C2CAdDetail?
+}
+
+private struct C2CAdDetail: Decodable {
+    let price: String?
 }
 
 private struct C2COrderRow: Decodable {

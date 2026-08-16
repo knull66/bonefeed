@@ -125,42 +125,30 @@ actor BitcoinMarketService {
                 )
             }
 
+            // PnL alerts are refined in AppStore (anti-flap / volume / regime).
+            // Here we only attach live heat signals for the desk UI.
             if thresholds.pnlAlertsEnabled {
                 for tick in ticks where thresholds.allowsSignal(for: tick.symbol) {
                     if tick.change24hPercent <= thresholds.pnlDropPercent {
-                        let signal = MarketSignal(
-                            id: "\(vipDesk ? "vip-" : "")\(tick.symbol.lowercased())-dump",
-                            kind: .dump,
-                            title: "\(vipTag)\(tick.symbol) \(L10n.t("signal.dump"))",
-                            detail: String(format: "%+.2f%% (≤ %.0f%%)", tick.change24hPercent, thresholds.pnlDropPercent)
-                        )
-                        signals.append(signal)
-                        alerts.append(
-                            IslandAlert(
-                                id: UUID(),
-                                kind: .pnl,
-                                title: "\(vipTag)\(String(format: L10n.t("signal.signalDump"), tick.symbol))",
-                                detail: signal.detail,
-                                createdAt: .now,
-                                isRead: false
+                        var detail = String(format: "%+.2f%% (≤ %.0f%%)", tick.change24hPercent, thresholds.pnlDropPercent)
+                        if let vol = tick.volumeSpikeText { detail += " · \(vol)" }
+                        signals.append(
+                            MarketSignal(
+                                id: "\(vipDesk ? "vip-" : "")\(tick.symbol.lowercased())-dump",
+                                kind: .dump,
+                                title: "\(vipTag)\(tick.symbol) \(L10n.t("signal.dump"))",
+                                detail: detail
                             )
                         )
                     } else if tick.change24hPercent >= thresholds.pnlPumpPercent {
-                        let signal = MarketSignal(
-                            id: "\(vipDesk ? "vip-" : "")\(tick.symbol.lowercased())-pump",
-                            kind: .pump,
-                            title: "\(vipTag)\(tick.symbol) \(L10n.t("signal.pump"))",
-                            detail: String(format: "%+.2f%% (≥ +%.0f%%)", tick.change24hPercent, thresholds.pnlPumpPercent)
-                        )
-                        signals.append(signal)
-                        alerts.append(
-                            IslandAlert(
-                                id: UUID(),
-                                kind: .pnl,
-                                title: "\(vipTag)\(String(format: L10n.t("signal.signalPump"), tick.symbol))",
-                                detail: signal.detail,
-                                createdAt: .now,
-                                isRead: false
+                        var detail = String(format: "%+.2f%% (≥ +%.0f%%)", tick.change24hPercent, thresholds.pnlPumpPercent)
+                        if let vol = tick.volumeSpikeText { detail += " · \(vol)" }
+                        signals.append(
+                            MarketSignal(
+                                id: "\(vipDesk ? "vip-" : "")\(tick.symbol.lowercased())-pump",
+                                kind: .pump,
+                                title: "\(vipTag)\(tick.symbol) \(L10n.t("signal.pump"))",
+                                detail: detail
                             )
                         )
                     }
@@ -657,7 +645,13 @@ actor BitcoinMarketService {
                 guard let price = Double(row.lastPrice),
                       let change = Double(row.priceChangePercent)
                 else { continue }
-                bySymbol[base] = AssetTick(symbol: base, priceUSD: price, change24hPercent: change)
+                let qv = Double(row.quoteVolume ?? "") ?? 0
+                bySymbol[base] = AssetTick(
+                    symbol: base,
+                    priceUSD: price,
+                    change24hPercent: change,
+                    quoteVolumeUSD: qv
+                )
             }
             let ordered = assets.compactMap { bySymbol[$0] }
             return ordered.isEmpty ? nil : ordered
@@ -678,7 +672,59 @@ actor BitcoinMarketService {
             guard let price = Double(row.lastPrice),
                   let change = Double(row.priceChangePercent)
             else { return nil }
-            return AssetTick(symbol: asset, priceUSD: price, change24hPercent: change)
+            let qv = Double(row.quoteVolume ?? "") ?? 0
+            return AssetTick(
+                symbol: asset,
+                priceUSD: price,
+                change24hPercent: change,
+                quoteVolumeUSD: qv
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    /// Attach 15m volume spike ratios for ticks near/over desk thresholds.
+    func enrichVolumeSpikes(
+        _ ticks: [AssetTick],
+        dumpThreshold: Double,
+        pumpThreshold: Double
+    ) async -> [AssetTick] {
+        var out: [AssetTick] = []
+        for tick in ticks {
+            var t = tick
+            let hot = t.change24hPercent <= dumpThreshold || t.change24hPercent >= pumpThreshold
+                || abs(t.change24hPercent) >= abs(dumpThreshold) * 0.7
+            if hot {
+                t.volumeSpikeRatio = await fetchVolumeSpikeRatio(symbol: t.symbol)
+            }
+            out.append(t)
+        }
+        return out
+    }
+
+    private func fetchVolumeSpikeRatio(symbol: String) async -> Double? {
+        let pair = "\(symbol.uppercased())USDT"
+        guard let url = URL(string: "https://api.binance.com/api/v3/klines?symbol=\(pair)&interval=15m&limit=5")
+        else { return nil }
+        do {
+            let (data, response) = try await session.data(from: url)
+            try validate(response)
+            guard let rows = try JSONSerialization.jsonObject(with: data) as? [[Any]], rows.count >= 4
+            else { return nil }
+            let vols: [Double] = rows.compactMap { row in
+                guard row.count > 5 else { return nil }
+                if let s = row[5] as? String { return Double(s) }
+                if let n = row[5] as? Double { return n }
+                if let n = row[5] as? Int { return Double(n) }
+                return nil
+            }
+            guard vols.count >= 4 else { return nil }
+            let latest = vols[vols.count - 1]
+            let prior = Array(vols.dropLast())
+            let avg = prior.reduce(0, +) / Double(prior.count)
+            guard avg > 0 else { return nil }
+            return latest / avg
         } catch {
             return nil
         }
@@ -819,6 +865,7 @@ private struct BinanceTicker24h: Decodable {
     let symbol: String
     let lastPrice: String
     let priceChangePercent: String
+    let quoteVolume: String?
 }
 
 private struct MempoolAddressResponse: Decodable {

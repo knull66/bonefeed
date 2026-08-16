@@ -64,11 +64,44 @@
     document.body.classList.remove("pay-open");
   };
 
-  const openCheckout = (e) => {
+  const openCheckout = async (e) => {
     if (isUsdt) {
       openUsdtModal(e);
       return;
     }
+
+    const tier = e.currentTarget?.dataset?.tier || "pro";
+    const stripeApi = (cfg.stripeCheckoutApi || "").trim();
+    const stripeUrl =
+      tier === "vip"
+        ? (cfg.stripeVipUrl || cfg.checkoutUrl || "").trim()
+        : (cfg.stripeProUrl || cfg.checkoutUrl || "").trim();
+
+    if (provider === "stripe" && stripeApi) {
+      e.preventDefault();
+      try {
+        const res = await fetch(stripeApi, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tier }),
+        });
+        const data = await res.json();
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+      return;
+    }
+
+    if (provider === "stripe" && stripeUrl) {
+      e.preventDefault();
+      window.open(stripeUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
     if (!checkoutUrl) {
       e.preventDefault();
       return;
@@ -85,20 +118,33 @@
 
   const wireCheckout = (el) => {
     if (!el) return;
-    const ready = isUsdt ? Boolean(usdtAddress) : Boolean(checkoutUrl);
+    const tier = el.dataset.tier || "pro";
+    const stripeUrl =
+      tier === "vip"
+        ? (cfg.stripeVipUrl || cfg.checkoutUrl || "").trim()
+        : (cfg.stripeProUrl || cfg.checkoutUrl || "").trim();
+    const stripeApi = (cfg.stripeCheckoutApi || "").trim();
+    const ready = isUsdt
+      ? Boolean(usdtAddress)
+      : provider === "stripe"
+        ? Boolean(stripeUrl || stripeApi)
+        : Boolean(checkoutUrl);
+
     if (!ready) {
       el.classList.add("is-pending");
       el.setAttribute("aria-disabled", "true");
       el.addEventListener("click", (e) => e.preventDefault());
       const pending = isUsdt
         ? "Add USDT address"
-        : el.dataset.pendingLabel || cfg.checkoutPendingLabel;
+        : provider === "stripe"
+          ? "Add Stripe Payment Link"
+          : el.dataset.pendingLabel || cfg.checkoutPendingLabel;
       el.textContent = pending;
       return;
     }
 
-    el.href = isUsdt ? "#pay" : checkoutUrl;
-    if (!isUsdt) {
+    el.href = isUsdt ? "#pay" : stripeUrl || checkoutUrl || "#pro";
+    if (!isUsdt && !stripeApi) {
       el.target = "_blank";
       el.rel = "noopener noreferrer";
     } else {
@@ -106,7 +152,14 @@
     }
     el.removeAttribute("aria-disabled");
     el.classList.remove("is-pending");
-    el.textContent = el.dataset.liveLabel || "Buy Pro · USDT";
+    const live =
+      el.dataset.liveLabel ||
+      (provider === "stripe"
+        ? tier === "vip"
+          ? "Buy VIP · Card"
+          : "Buy Pro · Card"
+        : "Buy Pro · USDT");
+    el.textContent = live;
     el.addEventListener("click", openCheckout);
   };
 

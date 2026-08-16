@@ -1,28 +1,32 @@
-// Bonefeed web commerce — USDT manual (no company / no Stripe required)
-// Step-by-step: Support/PAY_USDT.md
+# Bonefeed web commerce
+# USDT (VE) or Stripe (cards). Secrets never go here — only publishable / Payment Link URLs.
+# Plan: Support/STRIPE_PLAN.md
 window.BONEFEED_COMMERCE = {
-  // "usdt" | "lemonsqueezy" | "paddle" | "stripe"
-  provider: "usdt",
+  // "usdt" | "stripe" | "lemonsqueezy" | "paddle"
+  // Payment Links: no secret key needed on Netlify.
+  provider: "stripe",
 
-  // Public HTTPS URL to the notarized DMG (leave empty until hosted)
   downloadUrl: "",
 
-  // Ignored when provider is "usdt" (modal is used instead)
   checkoutUrl: "",
 
-  // --- USDT manual checkout ---
+  // --- Stripe Payment Links (Dashboard → Payment links) ---
+  stripeProUrl: "https://buy.stripe.com/test_6oUaEXfsKe9u6KPaKt4sE00",
+  stripeVipUrl: "", // paste VIP Payment Link when ready
+  // Only needed if you use the Netlify function instead of Payment Links:
+  // stripeCheckoutApi: "/.netlify/functions/create-checkout",
+  stripePublishableKey: "", // optional pk_test_… (not required for Payment Links)
+
+  // --- USDT manual checkout (set provider: "usdt" to use) ---
   priceUsdt: "9.99",
   priceVipUsdt: "14.99",
-  // Must match the deposit network in Binance/OKX (TRC20 recommended)
   usdtNetwork: "TRC20",
-  // Paste your Binance/OKX deposit address here (TRC20 starts with T…)
   usdtAddress: "TJhAMxQ57RGPuxjYo1roB4GQTiNqdFTijG",
-  // Where buyers message you after paying (Telegram / mailto / WhatsApp link)
   contactUrl: "https://t.me/vibesdistrict",
   contactLabel: "I paid — contact to unlock",
 
   useLemonOverlay: false,
 
   downloadPendingLabel: "Download soon",
-  checkoutPendingLabel: "Buy Pro · USDT",
+  checkoutPendingLabel: "Buy Pro · Card",
 };

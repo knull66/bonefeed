@@ -2,14 +2,15 @@ import AppKit
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
+    /// Ops-first sidebar: connect → watch → alerts → plan → chrome → about
     case general
+    case binance
+    case radar
+    case wallets
+    case alerts
     case pro
     case display
     case language
-    case radar
-    case binance
-    case wallets
-    case alerts
     case guide
     case privacy
     case about
@@ -19,13 +20,13 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
     var titleKey: String {
         switch self {
         case .general: "settings.pane.general"
+        case .binance: "settings.pane.binance"
+        case .radar: "settings.pane.radar"
+        case .wallets: "settings.pane.wallets"
+        case .alerts: "settings.pane.alerts"
         case .pro: "settings.pane.pro"
         case .display: "settings.pane.display"
         case .language: "settings.pane.language"
-        case .radar: "settings.pane.radar"
-        case .binance: "settings.pane.binance"
-        case .wallets: "settings.pane.wallets"
-        case .alerts: "settings.pane.alerts"
         case .guide: "settings.pane.guide"
         case .privacy: "settings.pane.privacy"
         case .about: "settings.pane.about"
@@ -35,13 +36,13 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
     var systemImage: String {
         switch self {
         case .general: "slider.horizontal.3"
+        case .binance: "key"
+        case .radar: "dot.radiowaves.left.and.right"
+        case .wallets: "link"
+        case .alerts: "bell"
         case .pro: "star.circle"
         case .display: "circle.lefthalf.filled"
         case .language: "globe"
-        case .radar: "dot.radiowaves.left.and.right"
-        case .binance: "key"
-        case .wallets: "link"
-        case .alerts: "bell"
         case .guide: "book"
         case .privacy: "hand.raised"
         case .about: "info.circle"
@@ -50,7 +51,8 @@ enum SettingsPane: String, CaseIterable, Identifiable, Hashable {
 
     var group: String {
         switch self {
-        case .general, .pro, .display, .language, .radar, .binance, .wallets, .alerts: "Main"
+        case .general, .binance, .radar, .wallets, .alerts, .pro: "Main"
+        case .display, .language: "Appearance"
         case .guide, .privacy, .about: Brand.name
         }
     }
@@ -67,6 +69,12 @@ struct SettingsRootView: View {
             List(selection: $pane) {
                 Section(store.t("settings.section.main")) {
                     ForEach(SettingsPane.allCases.filter { $0.group == "Main" }) { item in
+                        Label(store.t(item.titleKey), systemImage: item.systemImage)
+                            .tag(item)
+                    }
+                }
+                Section(store.t("settings.section.appearance")) {
+                    ForEach(SettingsPane.allCases.filter { $0.group == "Appearance" }) { item in
                         Label(store.t(item.titleKey), systemImage: item.systemImage)
                             .tag(item)
                     }
@@ -106,14 +114,25 @@ struct SettingsRootView: View {
         .preferredColorScheme(store.appTheme.colorScheme)
         .environment(\.chainPalette, p)
         .onAppear {
+            applyPreferredPane()
             store.refreshLaunchAtLoginStatus()
             Task { await store.refreshNotificationStatus() }
+        }
+        .onChange(of: store.settingsOpenToken) { _, _ in
+            applyPreferredPane()
         }
         .onChange(of: store.appLanguage) { _, _ in
             NSApp.keyWindow?.title = Brand.settingsTitle
         }
         .onChange(of: store.appTheme) { _, theme in
             NSApp.keyWindow?.appearance = NSAppearance(named: theme.isLight ? .aqua : .darkAqua)
+        }
+    }
+
+    private func applyPreferredPane() {
+        if let preferred = store.settingsPreferredPane {
+            pane = preferred
+            store.settingsPreferredPane = nil
         }
     }
 }
@@ -616,6 +635,19 @@ private struct ProSettingsPane: View {
                             store.unlockVIPLocal()
                         }
                         .foregroundStyle(.secondary)
+                        Toggle(store.t("lab.toggle"), isOn: Binding(
+                            get: { store.superadminLabEnabled },
+                            set: { store.setSuperadminLabEnabled($0) }
+                        ))
+                        Text(store.t("lab.toggleHelp"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        if store.superadminLabEnabled {
+                            Button(store.t("lab.open")) {
+                                store.openLabDesk()
+                            }
+                            .controlSize(.small)
+                        }
                         Text(store.t("pro.debugNote"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -770,7 +802,7 @@ private struct AlertsSettingsPane: View {
                                     get: { store.thresholds.pnlDropPercent },
                                     set: { store.updatePnLDrop($0) }
                                 ),
-                                in: -20...(-1),
+                                in: store.isVIP ? -20...(-1) : -20...(-5),
                                 step: 1
                             ) {
                                 Text(String(format: "%.0f%%", store.thresholds.pnlDropPercent))
@@ -784,12 +816,17 @@ private struct AlertsSettingsPane: View {
                                     get: { store.thresholds.pnlPumpPercent },
                                     set: { store.updatePnLPump($0) }
                                 ),
-                                in: 1...20,
+                                in: store.isVIP ? 1...20 : 5...20,
                                 step: 1
                             ) {
                                 Text(String(format: "+%.0f%%", store.thresholds.pnlPumpPercent))
                                     .monospacedDigit()
                             }
+                        }
+                        if !store.isVIP {
+                            Text(store.t("alerts.vipFloorHint"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                         Text(store.t("alerts.signalAssets"))
                             .font(.caption)
@@ -829,7 +866,7 @@ private struct AlertsSettingsPane: View {
                                     get: { store.thresholds.feeHigh },
                                     set: { store.updateFeeHigh($0) }
                                 ),
-                                in: 10...200,
+                                in: store.isVIP ? 10...200 : 40...200,
                                 step: 5
                             ) {
                                 Text(String(format: "%.0f sat/vB", store.thresholds.feeHigh))
@@ -837,6 +874,21 @@ private struct AlertsSettingsPane: View {
                             }
                         }
                     }
+                    Divider()
+                    Toggle(store.t("alerts.antiFlap"), isOn: Binding(
+                        get: { store.thresholds.antiFlapEnabled },
+                        set: { store.setAntiFlapEnabled($0) }
+                    ))
+                    Text(store.t("alerts.antiFlapHint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Toggle(store.t("alerts.volumeFilter"), isOn: Binding(
+                        get: { store.thresholds.volumeFilterEnabled },
+                        set: { store.setVolumeFilterEnabled($0) }
+                    ))
+                    Text(store.t("alerts.volumeFilterHint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(4)
@@ -858,6 +910,13 @@ private struct AlertsSettingsPane: View {
                                 .monospacedDigit()
                         }
                     }
+                    Toggle(store.t("alerts.focus"), isOn: Binding(
+                        get: { store.thresholds.respectSystemFocus },
+                        set: { store.setRespectSystemFocus($0) }
+                    ))
+                    Text(store.t("alerts.focusHint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                     Toggle(store.t("alerts.quiet"), isOn: Binding(
                         get: { store.thresholds.quietHoursEnabled },
                         set: { store.updateQuietHours(enabled: $0) }
@@ -953,6 +1012,44 @@ private struct AlertsSettingsPane: View {
                             }
                             .labelsHidden()
                             .frame(maxWidth: 160)
+                        }
+                        Divider()
+                        Toggle(store.t("alerts.p2pRate"), isOn: Binding(
+                            get: { store.thresholds.p2pRateAlertsEnabled },
+                            set: { store.setP2PRateAlertsEnabled($0) }
+                        ))
+                        Text(store.t("alerts.p2pRateHint"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        if store.thresholds.p2pRateAlertsEnabled {
+                            HStack {
+                                Text(store.t("alerts.p2pRateBuyMax"))
+                                TextField(
+                                    "0 = off",
+                                    value: Binding(
+                                        get: { store.thresholds.p2pRateBuyMax },
+                                        set: { store.updateP2PRateBuyMax($0) }
+                                    ),
+                                    format: .number
+                                )
+                                .frame(width: 100)
+                            }
+                            HStack {
+                                Text(store.t("alerts.p2pRateSellMin"))
+                                TextField(
+                                    "0 = off",
+                                    value: Binding(
+                                        get: { store.thresholds.p2pRateSellMin },
+                                        set: { store.updateP2PRateSellMin($0) }
+                                    ),
+                                    format: .number
+                                )
+                                .frame(width: 100)
+                            }
+                            Button(store.t("signals.openP2P")) {
+                                store.openBinanceP2P()
+                            }
+                            .controlSize(.small)
                         }
                     }
                 }

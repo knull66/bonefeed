@@ -1,8 +1,10 @@
-# Static landing only — ignore Swift Package.swift at repo root.
 [build]
   base = "Web"
   publish = "."
-  command = "true"
+  command = "npm install --omit=dev"
+
+[functions]
+  directory = "netlify/functions"
 
 [[headers]]
   for = "/*"

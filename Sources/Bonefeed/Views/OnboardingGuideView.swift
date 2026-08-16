@@ -7,9 +7,10 @@ struct GuideStepsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            step("01", "BINANCE", store.t("guide.step1.body"), "key.fill")
-            step("02", "NOTCH", store.t("guide.step2.body"), "menubar.rectangle")
-            step("03", "LOG", store.t("guide.step3.body"), "bell.fill")
+            step("01", store.t("guide.step1.title"), store.t("guide.step1.body"), "key.fill")
+            step("02", store.t("guide.step2.title"), store.t("guide.step2.body"), "menubar.rectangle")
+            step("03", store.t("guide.step3.title"), store.t("guide.step3.body"), "bell.fill")
+            step("04", store.t("guide.step4.title"), store.t("guide.step4.body"), "dot.radiowaves.left.and.right")
         }
     }
 
@@ -92,23 +93,32 @@ struct OnboardingGuideView: View {
                     .font(IslandTheme.monoSmall)
                     .foregroundStyle(p.muted)
 
-                HStack {
-                    Button(store.t("onboard.settings")) {
-                        store.openAppSettings()
+                VStack(alignment: .leading, spacing: 10) {
+                    Button(store.t("onboard.toSignals")) {
+                        store.completeOnboardingToSignals()
                     }
                     .buttonStyle(.plain)
                     .font(IslandTheme.monoBold)
-                    .foregroundStyle(p.cool)
+                    .foregroundStyle(p.warn)
 
-                    Spacer()
+                    HStack {
+                        Button(store.t("onboard.settings")) {
+                            store.openAppSettings(pane: .binance)
+                        }
+                        .buttonStyle(.plain)
+                        .font(IslandTheme.monoBold)
+                        .foregroundStyle(p.cool)
 
-                    Button(store.t("onboard.ack")) {
-                        store.completeOnboarding()
+                        Spacer()
+
+                        Button(store.t("onboard.ack")) {
+                            store.completeOnboarding()
+                        }
+                        .buttonStyle(.plain)
+                        .font(IslandTheme.monoBold)
+                        .foregroundStyle(p.accent)
+                        .keyboardShortcut(.defaultAction)
                     }
-                    .buttonStyle(.plain)
-                    .font(IslandTheme.monoBold)
-                    .foregroundStyle(p.accent)
-                    .keyboardShortcut(.defaultAction)
                 }
             }
             .padding(18)

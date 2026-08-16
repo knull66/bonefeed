@@ -46,9 +46,15 @@ struct IslandNotchView: View {
         .onTapGesture {
             if hasLiveP2P {
                 store.openP2PStatus()
-            } else if showingAlertPeek {
-                store.selectedTab = .log
-                store.togglePanel()
+            } else if showingAlertPeek, let banner = store.bannerAlert {
+                if banner.kind == .pnl || banner.kind == .gas {
+                    store.openSignalsDesk()
+                } else {
+                    store.selectedTab = .log
+                    if !store.isPanelOpen { store.togglePanel() }
+                }
+            } else if store.isVIP, store.deskHasFire {
+                store.openSignalsDesk()
             } else {
                 store.togglePanel()
             }
@@ -81,7 +87,16 @@ struct IslandNotchView: View {
             startGlitchBurst()
         }
         .environment(\.chainPalette, p)
-        .help(hasLiveP2P ? store.t("notch.p2pDockHint") : (store.isPanelOpen ? "Close panel" : "Open \(Brand.name)"))
+        .help(notchHelpText)
+    }
+
+    private var notchHelpText: String {
+        if hasLiveP2P { return store.t("notch.p2pDockHint") }
+        if showingAlertPeek, let banner = store.bannerAlert, banner.kind == .pnl || banner.kind == .gas {
+            return store.t("notch.alertSignalsHint")
+        }
+        if store.isPanelOpen { return store.t("notch.closePanel") }
+        return store.t("notch.openPanel")
     }
 
     // MARK: - Morphing island
@@ -192,7 +207,7 @@ struct IslandNotchView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let remaining = order.remainingSeconds(at: context.date)
             HStack(spacing: 8) {
-                Text("P2P")
+                Text(store.t("tab.p2p"))
                     .font(.system(size: 10, weight: .bold, design: .rounded))
                     .foregroundStyle(p.warn)
                 Text(order.tradeType)
@@ -241,6 +256,10 @@ struct IslandNotchView: View {
         HStack(alignment: .center, spacing: 7) {
             logo
 
+            if store.isVIP {
+                vipHeatBadge
+            }
+
             // Keep the normal ticker in the header — alert detail lives in the peek below.
             NotchMarqueeView(items: NotchTickerItem.build(from: store), palette: p)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -266,6 +285,31 @@ struct IslandNotchView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private var vipHeatBadge: some View {
+        let heat = store.deskHeatAvg
+        let hot = store.deskHasFire || heat >= 0.7
+        let ring = hot ? p.warn : p.cool
+        return ZStack {
+            Circle()
+                .fill(ring.opacity(hot ? 0.18 : 0.06))
+                .frame(width: 18, height: 18)
+                .scaleEffect(hot && store.pillPulse ? 1.15 : 1.0)
+            Circle()
+                .stroke(ring.opacity(0.28), lineWidth: 1.5)
+                .frame(width: 16, height: 16)
+            Circle()
+                .trim(from: 0, to: CGFloat(min(1, max(0.08, heat))))
+                .stroke(ring, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: 16, height: 16)
+            Text("V")
+                .font(.system(size: 7, weight: .heavy, design: .monospaced))
+                .foregroundStyle(ring)
+        }
+        .accessibilityLabel("VIP")
+        .animation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true), value: store.pillPulse && hot)
     }
 
     // MARK: - Peek
@@ -509,7 +553,31 @@ struct IslandNotchView: View {
                 Spacer(minLength: 0)
             }
 
-            Text(store.t("notch.alertHint"))
+            if alert.kind == .pnl || alert.kind == .gas {
+                HStack(spacing: 6) {
+                    Button(store.t("signals.openBinance")) {
+                        store.openBinanceTrade()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(p.cool)
+                    Text("·")
+                        .foregroundStyle(p.muted)
+                    Button(store.t("signals.markSeen")) {
+                        store.dismissActiveAlert()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(p.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+            Text(
+                alert.kind == .pnl || alert.kind == .gas
+                    ? store.t("notch.alertSignalsHint")
+                    : store.t("notch.alertHint")
+            )
                 .font(.system(size: 9, weight: .medium, design: .rounded))
                 .foregroundStyle(p.muted.opacity(0.85))
                 .frame(maxWidth: .infinity, alignment: .center)

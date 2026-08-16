@@ -347,6 +347,20 @@ struct AlertThresholds: Codable, Sendable, Equatable {
     var p2pFiat: String
     /// VIP: use tight signal desk (±2.5% / lower fee) instead of Free/Pro thresholds.
     var vipDeskEnabled: Bool
+    /// Hysteresis: don't re-fire until price recovers past reset band.
+    var antiFlapEnabled: Bool
+    /// Only fire pump/dump when 15m volume ≥ N× average of prior candles.
+    var volumeFilterEnabled: Bool
+    var volumeSpikeMultiplier: Double
+    /// Mute market noise when macOS Focus / DND is on (ops still fire).
+    var respectSystemFocus: Bool
+    /// Watch marketplace P2P best rate vs user thresholds (Pro).
+    var p2pRateAlertsEnabled: Bool
+    /// Alert when best BUY price (you buy crypto) ≥ this fiat/unit. 0 = off.
+    var p2pRateBuyMax: Double
+    /// Alert when best SELL price (you sell crypto) ≤ this. 0 = off.
+    var p2pRateSellMin: Double
+    var p2pRateAsset: String
 
     static let `default` = AlertThresholds(
         feeHigh: 40,
@@ -363,7 +377,15 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         healthFactorWarn: 1.5,
         p2pAlertsEnabled: true,
         p2pFiat: "",
-        vipDeskEnabled: true
+        vipDeskEnabled: true,
+        antiFlapEnabled: true,
+        volumeFilterEnabled: false,
+        volumeSpikeMultiplier: 3,
+        respectSystemFocus: true,
+        p2pRateAlertsEnabled: false,
+        p2pRateBuyMax: 0,
+        p2pRateSellMin: 0,
+        p2pRateAsset: "USDT"
     )
 
     init(
@@ -381,7 +403,15 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         healthFactorWarn: Double,
         p2pAlertsEnabled: Bool = true,
         p2pFiat: String = "",
-        vipDeskEnabled: Bool = true
+        vipDeskEnabled: Bool = true,
+        antiFlapEnabled: Bool = true,
+        volumeFilterEnabled: Bool = false,
+        volumeSpikeMultiplier: Double = 3,
+        respectSystemFocus: Bool = true,
+        p2pRateAlertsEnabled: Bool = false,
+        p2pRateBuyMax: Double = 0,
+        p2pRateSellMin: Double = 0,
+        p2pRateAsset: String = "USDT"
     ) {
         self.feeHigh = feeHigh
         self.pnlDropPercent = pnlDropPercent
@@ -398,6 +428,14 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         self.p2pAlertsEnabled = p2pAlertsEnabled
         self.p2pFiat = p2pFiat
         self.vipDeskEnabled = vipDeskEnabled
+        self.antiFlapEnabled = antiFlapEnabled
+        self.volumeFilterEnabled = volumeFilterEnabled
+        self.volumeSpikeMultiplier = volumeSpikeMultiplier
+        self.respectSystemFocus = respectSystemFocus
+        self.p2pRateAlertsEnabled = p2pRateAlertsEnabled
+        self.p2pRateBuyMax = p2pRateBuyMax
+        self.p2pRateSellMin = p2pRateSellMin
+        self.p2pRateAsset = p2pRateAsset
     }
 
     init(from decoder: Decoder) throws {
@@ -417,6 +455,14 @@ struct AlertThresholds: Codable, Sendable, Equatable {
         p2pAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .p2pAlertsEnabled) ?? Self.default.p2pAlertsEnabled
         p2pFiat = try c.decodeIfPresent(String.self, forKey: .p2pFiat) ?? Self.default.p2pFiat
         vipDeskEnabled = try c.decodeIfPresent(Bool.self, forKey: .vipDeskEnabled) ?? Self.default.vipDeskEnabled
+        antiFlapEnabled = try c.decodeIfPresent(Bool.self, forKey: .antiFlapEnabled) ?? Self.default.antiFlapEnabled
+        volumeFilterEnabled = try c.decodeIfPresent(Bool.self, forKey: .volumeFilterEnabled) ?? Self.default.volumeFilterEnabled
+        volumeSpikeMultiplier = try c.decodeIfPresent(Double.self, forKey: .volumeSpikeMultiplier) ?? Self.default.volumeSpikeMultiplier
+        respectSystemFocus = try c.decodeIfPresent(Bool.self, forKey: .respectSystemFocus) ?? Self.default.respectSystemFocus
+        p2pRateAlertsEnabled = try c.decodeIfPresent(Bool.self, forKey: .p2pRateAlertsEnabled) ?? Self.default.p2pRateAlertsEnabled
+        p2pRateBuyMax = try c.decodeIfPresent(Double.self, forKey: .p2pRateBuyMax) ?? Self.default.p2pRateBuyMax
+        p2pRateSellMin = try c.decodeIfPresent(Double.self, forKey: .p2pRateSellMin) ?? Self.default.p2pRateSellMin
+        p2pRateAsset = try c.decodeIfPresent(String.self, forKey: .p2pRateAsset) ?? Self.default.p2pRateAsset
     }
 
     func allowsSignal(for symbol: String) -> Bool {
@@ -478,6 +524,10 @@ struct AssetTick: Identifiable, Codable, Sendable, Equatable {
     var symbol: String
     var priceUSD: Double
     var change24hPercent: Double
+    /// Quote volume USDT (24h), when available.
+    var quoteVolumeUSD: Double = 0
+    /// Latest 15m volume ÷ avg of prior 15m candles. Nil = unknown.
+    var volumeSpikeRatio: Double? = nil
 
     var id: String { symbol }
 
@@ -493,6 +543,11 @@ struct AssetTick: Identifiable, Codable, Sendable, Equatable {
 
     var changeText: String {
         String(format: "%+.2f%%", change24hPercent)
+    }
+
+    var volumeSpikeText: String? {
+        guard let r = volumeSpikeRatio else { return nil }
+        return String(format: "%.1f× vol", r)
     }
 }
 

@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         center.delegate = self
 
         IslandUIController.shared.start(store: store)
+        GlobalHotKey.start(store: store)
 
         Task {
             await AppNotifier.bootstrap()

@@ -49,7 +49,8 @@ struct IslandPanelView: View {
             .allowsHitTesting(!showSplash)
 
             if showSplash {
-                IslandSplashView {
+                IslandSplashView(bootLabel: store.t("panel.boot")) {
+                    store.splashShownThisSession = true
                     showSplash = false
                 }
                 .zIndex(10)
@@ -64,23 +65,26 @@ struct IslandPanelView: View {
         }
         .onAppear {
             lastToken = store.panelOpenToken
-            if store.skipNextSplash {
-                store.skipNextSplash = false
-                showSplash = false
-            } else {
-                showSplash = true
-            }
+            resolveSplash()
         }
         .onChange(of: store.panelOpenToken) { _, token in
             guard token != lastToken else { return }
             lastToken = token
-            if store.skipNextSplash {
-                store.skipNextSplash = false
-                showSplash = false
-            } else {
-                showSplash = true
-            }
+            resolveSplash()
         }
+    }
+
+    private func resolveSplash() {
+        if store.skipNextSplash {
+            store.skipNextSplash = false
+            showSplash = false
+            return
+        }
+        if store.splashShownThisSession {
+            showSplash = false
+            return
+        }
+        showSplash = true
     }
 
     /// In-content top bar — plain text/icons, no toolbar glass pill.
@@ -110,12 +114,12 @@ struct IslandPanelView: View {
             } label: {
                 HStack(spacing: 5) {
                     if store.isRefreshing {
-                        Text("… SYNC")
+                        Text(store.t("panel.sync"))
                     } else {
-                        Text("▶ LIVE")
+                        Text(store.t("panel.live"))
                     }
                     if store.isPaused {
-                        Text("PAUSED")
+                        Text(store.t("panel.paused"))
                             .foregroundStyle(p.warn.opacity(0.95))
                     } else if let last = store.lastRefreshAt {
                         Text(last, style: .time)
@@ -242,6 +246,8 @@ private struct RadarPage: View {
                     RadarSignalsPage(store: store)
                 case .p2p:
                     RadarP2PPage(store: store)
+                case .lab:
+                    RadarBrokerBotPage(store: store)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -250,15 +256,16 @@ private struct RadarPage: View {
 
     private var radarSubBar: some View {
         HStack(spacing: 4) {
-            ForEach(AppStore.RadarSubTab.allCases) { sub in
+            ForEach(store.visibleRadarSubTabs) { sub in
                 let selected = store.selectedRadarSubTab == sub
                 let openCount = store.snapshot.openP2POrders.count
                 let hotSignals = store.snapshot.activeSignals.filter { $0.kind != .calm }.count
+                let labTone = sub == .lab
                 Button {
                     store.selectedRadarSubTab = sub
                 } label: {
                     HStack(spacing: 5) {
-                        Text(sub.title)
+                        Text(store.t(sub.titleKey))
                             .font(IslandTheme.monoBold)
                         if sub == .p2p, openCount > 0 {
                             Text("\(openCount)")
@@ -278,11 +285,16 @@ private struct RadarPage: View {
                                 .background((selected ? p.bg.opacity(0.25) : p.warn.opacity(0.22)))
                                 .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
                         }
+                        if sub == .lab {
+                            Text("AI")
+                                .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                                .foregroundStyle(selected ? p.bg : p.accent)
+                        }
                     }
-                    .foregroundStyle(selected ? p.bg : p.muted)
+                    .foregroundStyle(selected ? p.bg : (labTone ? p.accent : p.muted))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 5)
-                    .background(selected ? p.cool.opacity(0.92) : Color.clear)
+                    .background(selected ? (labTone ? p.accent.opacity(0.92) : p.cool.opacity(0.92)) : Color.clear)
                     .overlay(
                         Rectangle()
                             .stroke(selected ? p.accent.opacity(0.55) : p.strokeDim, lineWidth: 1)
@@ -395,7 +407,7 @@ private struct RadarPage: View {
                         }
                     }
                     Button {
-                        store.selectedRadarSubTab = .signals
+                        store.openSignalsDesk()
                     } label: {
                         Text(store.isVIP ? store.t("signals.openDesk") : store.t("signals.openDeskLocked"))
                             .font(IslandTheme.monoSmall)
@@ -440,163 +452,539 @@ private struct RadarPage: View {
 private struct RadarSignalsPage: View {
     @Bindable var store: AppStore
     private var p: ThemePalette { store.palette }
+    @State private var pulse = false
 
     private var desk: AlertThresholds { store.signalDeskThresholds }
+    private var tightOn: Bool { store.isVIP && store.thresholds.vipDeskEnabled }
+    private var ticks: [AssetTick] { store.snapshot.marketTicks }
+    private var liveSignals: [MarketSignal] {
+        store.snapshot.activeSignals.filter { $0.kind != .calm }
+    }
+    private var rankedTicks: [AssetTick] {
+        ticks.sorted {
+            store.signalProximity(change24h: $0.change24hPercent).progress
+                > store.signalProximity(change24h: $1.change24hPercent).progress
+        }
+    }
+    private var hottest: AssetTick? { rankedTicks.first }
+    private var firedCount: Int {
+        rankedTicks.filter { store.signalProximity(change24h: $0.change24hPercent).fired }.count
+    }
+    private var heatAvg: Double {
+        guard !rankedTicks.isEmpty else { return 0 }
+        let sum = rankedTicks.reduce(0.0) {
+            $0 + min(1, store.signalProximity(change24h: $1.change24hPercent).progress)
+        }
+        return sum / Double(rankedTicks.count)
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                RetroSection(title: store.isVIP ? "VIP DESK" : "SIGNAL DESK") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(store.t("signals.blurb"))
+            VStack(alignment: .leading, spacing: 16) {
+                deskHero
+                if store.thresholds.isInQuietHours() {
+                    quietBanner
+                }
+                if store.isVIP {
+                    heatStats
+                    heatGrid
+                    if let hot = hottest, store.signalProximity(change24h: hot.change24hPercent).fired {
+                        actionStrip(for: hot)
+                    }
+                    liveFeed
+                    pingHistory
+                } else {
+                    lockedVIPPreview
+                }
+                Text(store.t("signals.disclaimer"))
+                    .font(IslandTheme.monoSmall)
+                    .foregroundStyle(p.muted.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+    }
+
+    private var quietBanner: some View {
+        HStack(spacing: 8) {
+            Text("☾")
+                .foregroundStyle(p.cool)
+            Text(store.t("signals.quietOn"))
+                .font(IslandTheme.monoSmall)
+                .foregroundStyle(p.muted)
+            Spacer()
+        }
+        .padding(8)
+        .background(p.cool.opacity(0.1))
+        .overlay(Rectangle().stroke(p.cool.opacity(0.3), lineWidth: 1))
+    }
+
+    private var lockedVIPPreview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(store.t("signals.lockedTitle"))
+                .font(IslandTheme.monoBold)
+                .foregroundStyle(p.warn)
+            Text(store.t("signals.lockedBody"))
+                .font(IslandTheme.monoSmall)
+                .foregroundStyle(p.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ZStack {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                    spacing: 8
+                ) {
+                    ForEach(rankedTicks.prefix(4)) { tick in
+                        heatTile(tick)
+                    }
+                }
+                .blur(radius: 2.2)
+                .opacity(0.45)
+                .allowsHitTesting(false)
+
+                VStack(spacing: 10) {
+                    Text("VIP")
+                        .font(.system(size: 22, weight: .heavy, design: .monospaced))
+                        .foregroundStyle(p.warn)
+                    Text(store.t("signals.lockedCta"))
+                        .font(IslandTheme.monoSmall)
+                        .foregroundStyle(p.text)
+                        .multilineTextAlignment(.center)
+                    Button(store.vipBuyLabel) {
+                        store.openProSettings()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(store.proStore.isPurchasing)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity)
+                .background(p.bg.opacity(0.72))
+                .overlay(Rectangle().stroke(p.warn.opacity(0.45), lineWidth: 1))
+            }
+        }
+    }
+
+    private var deskHero: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            (tightOn ? p.warn : p.cool).opacity(0.18),
+                            p.panel.opacity(0.95),
+                            p.bgMid.opacity(0.9),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke((tightOn ? p.warn : p.cool).opacity(pulse && tightOn ? 0.75 : 0.35), lineWidth: 1.2)
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .stroke((tightOn ? p.warn : p.cool).opacity(0.25), lineWidth: 3)
+                            .frame(width: 44, height: 44)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(min(1, heatAvg)))
+                            .stroke(
+                                tightOn ? p.warn : p.cool,
+                                style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 44, height: 44)
+                        Text(tightOn ? "VIP" : "STD")
+                            .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(tightOn ? p.warn : p.cool)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(tightOn ? store.t("signals.heroVip") : store.t("signals.heroStd"))
+                            .font(IslandTheme.monoTitle)
+                            .foregroundStyle(p.text)
+                        Text(store.t("signals.blurbShort"))
                             .font(IslandTheme.monoSmall)
                             .foregroundStyle(p.muted)
                             .fixedSize(horizontal: false, vertical: true)
-
-                        HStack(spacing: 8) {
-                            deskChip(
-                                "PUMP +\(String(format: "%.1f", desk.pnlPumpPercent))%",
-                                color: p.gain
-                            )
-                            deskChip(
-                                "DUMP \(String(format: "%.1f", desk.pnlDropPercent))%",
-                                color: p.danger
-                            )
-                            deskChip(
-                                "FEE \(String(format: "%.0f", desk.feeHigh))",
-                                color: p.warn
-                            )
-                        }
-
-                        HStack(spacing: 6) {
-                            Text(store.isVIP && store.thresholds.vipDeskEnabled ? "● VIP TIGHT" : "○ STANDARD")
-                                .font(IslandTheme.monoBold)
-                                .foregroundStyle(store.isVIP && store.thresholds.vipDeskEnabled ? p.warn : p.muted)
-                            Spacer()
-                            Text("CD \(desk.cooldownMinutes)m")
-                                .font(IslandTheme.monoSmall)
-                                .foregroundStyle(p.muted)
-                        }
-
-                        if !store.isVIP {
-                            Text(store.t("signals.vipUpsell"))
-                                .font(IslandTheme.monoSmall)
-                                .foregroundStyle(p.warn)
-                            Button(store.vipBuyLabel) {
-                                store.openProSettings()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(store.proStore.isPurchasing)
-                        } else {
-                            Toggle(store.t("vip.deskToggle"), isOn: Binding(
-                                get: { store.thresholds.vipDeskEnabled },
-                                set: { store.setVIPDeskEnabled($0) }
-                            ))
-                            .font(IslandTheme.monoSmall)
-                            .tint(p.warn)
-                        }
                     }
+                    Spacer(minLength: 0)
                 }
 
-                RetroSection(title: "NEAR TRIGGER") {
-                    let ticks = store.snapshot.marketTicks
-                    if ticks.isEmpty {
-                        Text(store.t("panel.marketsEmpty"))
-                            .font(IslandTheme.mono)
-                            .foregroundStyle(p.muted)
-                    } else {
-                        Text(store.t("signals.nearHelp"))
-                            .font(IslandTheme.monoSmall)
-                            .foregroundStyle(p.muted)
-                            .padding(.bottom, 2)
-                        ForEach(ticks.prefix(10)) { tick in
-                            signalWatchRow(tick)
-                        }
-                    }
+                HStack(spacing: 6) {
+                    deskChip("▲ +\(fmt1(desk.pnlPumpPercent))%", p.gain)
+                    deskChip("▼ \(fmt1(desk.pnlDropPercent))%", p.danger)
+                    deskChip("FEE \(fmt0(desk.feeHigh))", p.warn)
+                    deskChip("CD \(desk.cooldownMinutes)m", p.cool)
                 }
 
-                RetroSection(title: "LIVE") {
-                    let live = store.snapshot.activeSignals.filter { $0.kind != .calm }
-                    if live.isEmpty {
-                        let calm = store.snapshot.activeSignals.first(where: { $0.kind == .calm })
-                        Text(calm?.detail ?? store.t("signals.calm"))
-                            .font(IslandTheme.mono)
-                            .foregroundStyle(p.muted)
-                    } else {
-                        ForEach(live) { signal in
-                            HStack(alignment: .top, spacing: 8) {
-                                Text(liveGlyph(signal.kind))
-                                    .font(IslandTheme.monoBold)
-                                    .foregroundStyle(liveColor(signal.kind))
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(signal.title.uppercased())
-                                        .font(IslandTheme.monoBold)
-                                        .foregroundStyle(p.text)
-                                    Text(signal.detail)
-                                        .font(IslandTheme.monoSmall)
-                                        .foregroundStyle(p.muted)
-                                }
-                                Spacer(minLength: 0)
-                            }
-                        }
-                    }
-                }
-
-                Text(store.t("signals.disclaimer"))
+                if store.isVIP {
+                    Toggle(store.t("vip.deskToggle"), isOn: Binding(
+                        get: { store.thresholds.vipDeskEnabled },
+                        set: { store.setVIPDeskEnabled($0) }
+                    ))
                     .font(IslandTheme.monoSmall)
-                    .foregroundStyle(p.muted.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true)
+                    .tint(p.warn)
+                } else {
+                    Text(store.t("signals.vipUpsell"))
+                        .font(IslandTheme.monoSmall)
+                        .foregroundStyle(p.warn)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(12)
         }
     }
 
-    private func deskChip(_ text: String, color: Color) -> some View {
+    private var heatStats: some View {
+        HStack(spacing: 8) {
+            statTile(
+                label: store.t("signals.statHot"),
+                value: hottest?.symbol ?? "—",
+                detail: hottest.map { $0.changeText } ?? "—",
+                color: hottest.map { p.pnlColor($0.change24hPercent) } ?? p.muted
+            )
+            statTile(
+                label: store.t("signals.statHeat"),
+                value: "\(Int(heatAvg * 100))%",
+                detail: store.t("signals.statHeatDetail"),
+                color: heatAvg >= 0.7 ? p.warn : p.cool
+            )
+            statTile(
+                label: store.t("signals.statFire"),
+                value: "\(firedCount)",
+                detail: store.t("signals.statFireDetail"),
+                color: firedCount > 0 ? p.danger : p.muted
+            )
+        }
+    }
+
+    private var heatGrid: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(store.t("signals.boardTitle"))
+                    .font(IslandTheme.monoBold)
+                    .foregroundStyle(p.accent)
+                Spacer()
+                Text(store.t("signals.nearHelp"))
+                    .font(IslandTheme.monoSmall)
+                    .foregroundStyle(p.muted)
+            }
+
+            if rankedTicks.isEmpty {
+                Text(store.t("panel.marketsEmpty"))
+                    .font(IslandTheme.mono)
+                    .foregroundStyle(p.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(p.panel.opacity(0.5))
+            } else {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                    spacing: 8
+                ) {
+                    ForEach(rankedTicks.prefix(8)) { tick in
+                        heatTile(tick)
+                    }
+                }
+            }
+        }
+    }
+
+    private var liveFeed: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(store.t("signals.liveTitle"))
+                .font(IslandTheme.monoBold)
+                .foregroundStyle(p.accent)
+
+            if liveSignals.isEmpty {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(p.cool.opacity(0.85))
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(pulse ? 1.25 : 0.85)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.t("signals.calm"))
+                            .font(IslandTheme.monoBold)
+                            .foregroundStyle(p.text)
+                        Text(store.snapshot.activeSignals.first(where: { $0.kind == .calm })?.detail ?? "—")
+                            .font(IslandTheme.monoSmall)
+                            .foregroundStyle(p.muted)
+                    }
+                    Spacer()
+                }
+                .padding(10)
+                .background(p.panel.opacity(0.55))
+                .overlay(Rectangle().stroke(p.strokeDim, lineWidth: 1))
+            } else {
+                ForEach(liveSignals) { signal in
+                    HStack(alignment: .center, spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .fill(liveColor(signal.kind).opacity(0.18))
+                                .frame(width: 34, height: 34)
+                            Text(liveGlyph(signal.kind))
+                                .font(IslandTheme.monoBold)
+                                .foregroundStyle(liveColor(signal.kind))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(signal.title.uppercased())
+                                .font(IslandTheme.monoBold)
+                                .foregroundStyle(p.text)
+                            Text(signal.detail)
+                                .font(IslandTheme.monoSmall)
+                                .foregroundStyle(p.muted)
+                        }
+                        Spacer(minLength: 0)
+                        Text("LIVE")
+                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(p.bg)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(liveColor(signal.kind))
+                    }
+                    .padding(10)
+                    .background(liveColor(signal.kind).opacity(0.08))
+                    .overlay(Rectangle().stroke(liveColor(signal.kind).opacity(0.45), lineWidth: 1))
+                }
+            }
+        }
+    }
+
+    private var pingHistory: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(store.t("signals.historyTitle"))
+                    .font(IslandTheme.monoBold)
+                    .foregroundStyle(p.accent)
+                Spacer()
+                if !store.signalPingHistory.isEmpty {
+                    Button(store.t("signals.historyClear")) {
+                        store.clearSignalPingHistory()
+                    }
+                    .buttonStyle(.plain)
+                    .font(IslandTheme.monoSmall)
+                    .foregroundStyle(p.muted)
+                }
+            }
+
+            if store.signalPingHistory.isEmpty {
+                Text(store.t("signals.historyEmpty"))
+                    .font(IslandTheme.monoSmall)
+                    .foregroundStyle(p.muted)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(p.panel.opacity(0.5))
+            } else {
+                ForEach(store.signalPingHistory.prefix(8)) { ping in
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(ping.kind.uppercased().prefix(4))
+                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(p.warn)
+                            .frame(width: 36, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(ping.title.uppercased())
+                                .font(IslandTheme.monoBold)
+                                .foregroundStyle(p.text)
+                            Text(ping.detail)
+                                .font(IslandTheme.monoSmall)
+                                .foregroundStyle(p.muted)
+                                .lineLimit(2)
+                        }
+                        Spacer(minLength: 0)
+                        Text(ping.at, style: .time)
+                            .font(IslandTheme.monoSmall)
+                            .foregroundStyle(p.muted)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    private func actionStrip(for tick: AssetTick) -> some View {
+        let prox = store.signalProximity(change24h: tick.change24hPercent)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text(prox.side == "PUMP" ? "▲" : "▼")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(prox.side == "PUMP" ? p.gain : p.danger)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: store.t("signals.actionTitle"), tick.symbol, prox.side))
+                        .font(IslandTheme.monoBold)
+                        .foregroundStyle(p.text)
+                    Text(store.t("signals.actionBody"))
+                        .font(IslandTheme.monoSmall)
+                        .foregroundStyle(p.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 8) {
+                Button(store.t("signals.openBinance")) {
+                    store.openBinanceTrade(symbol: tick.symbol)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Button(store.t("signals.openP2P")) {
+                    store.openBinanceP2P()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button(store.t("signals.markSeen")) {
+                    store.dismissActiveAlert()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
+        .background(
+            LinearGradient(
+                colors: [
+                    (prox.side == "PUMP" ? p.gain : p.danger).opacity(0.2),
+                    p.panel.opacity(0.9),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .overlay(
+            Rectangle()
+                .stroke((prox.side == "PUMP" ? p.gain : p.danger).opacity(0.55), lineWidth: 1)
+        )
+    }
+
+    private func heatTile(_ tick: AssetTick) -> some View {
+        let prox = store.signalProximity(change24h: tick.change24hPercent)
+        let progress = min(1, max(0, prox.progress))
+        let color: Color = {
+            if prox.fired { return prox.side == "PUMP" ? p.gain : p.danger }
+            if progress >= 0.7 { return p.warn }
+            return p.cool
+        }()
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(tick.symbol)
+                    .font(IslandTheme.monoBold)
+                    .foregroundStyle(p.text)
+                Spacer()
+                Text(prox.fired ? store.t("signals.fire") : "\(Int(progress * 100))%")
+                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(color)
+            }
+
+            // Terminal proximity meter (CRT ops, not dashboard cards).
+            GeometryReader { geo in
+                let blocks = 12
+                let lit = Int((progress * Double(blocks)).rounded(.down))
+                HStack(spacing: 2) {
+                    ForEach(0..<blocks, id: \.self) { i in
+                        Rectangle()
+                            .fill(i < lit ? color : p.strokeDim.opacity(0.45))
+                            .frame(width: max(2, (geo.size.width - CGFloat(blocks - 1) * 2) / CGFloat(blocks)), height: 8)
+                    }
+                }
+            }
+            .frame(height: 8)
+
+            HStack {
+                Text(prox.side == "PUMP" ? "▲" : "▼")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(color)
+                Text(tick.changeText)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(p.pnlColor(tick.change24hPercent))
+                Spacer()
+                Text(tick.priceText)
+                    .font(IslandTheme.monoSmall)
+                    .foregroundStyle(p.muted)
+            }
+
+            // Synthetic 24h spark from signed move (visual cue only).
+            terminalSpark(change: tick.change24hPercent, color: color)
+                .frame(height: 22)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(p.panel.opacity(0.75))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(color.opacity(prox.fired ? 0.7 : 0.28), lineWidth: prox.fired ? 1.4 : 1)
+        )
+        .onTapGesture {
+            guard store.isVIP else { return }
+            store.openBinanceTrade(symbol: tick.symbol)
+        }
+    }
+
+    private func terminalSpark(change: Double, color: Color) -> some View {
+        let points = sparkPoints(change: change)
+        return GeometryReader { geo in
+            Path { path in
+                guard points.count > 1 else { return }
+                let w = geo.size.width
+                let h = geo.size.height
+                for (i, y) in points.enumerated() {
+                    let x = w * CGFloat(i) / CGFloat(points.count - 1)
+                    let py = h * (1 - CGFloat(y))
+                    if i == 0 { path.move(to: CGPoint(x: x, y: py)) }
+                    else { path.addLine(to: CGPoint(x: x, y: py)) }
+                }
+            }
+            .stroke(color.opacity(0.85), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round))
+        }
+    }
+
+    /// Cheap visual spark derived from 24h % — not historical OHLC.
+    private func sparkPoints(change: Double) -> [Double] {
+        let end = min(1, max(0, 0.5 + change / 20))
+        return (0..<8).map { i in
+            let t = Double(i) / 7
+            let wobble = sin(t * .pi * 2.2 + change) * 0.06
+            return min(1, max(0, 0.5 + (end - 0.5) * t + wobble))
+        }
+    }
+
+    private func statTile(label: String, value: String, detail: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(p.muted)
+            Text(value)
+                .font(IslandTheme.monoTitle)
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(detail)
+                .font(IslandTheme.monoSmall)
+                .foregroundStyle(p.muted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(p.panel.opacity(0.65))
+        .overlay(Rectangle().stroke(color.opacity(0.28), lineWidth: 1))
+    }
+
+    private func deskChip(_ text: String, _ color: Color) -> some View {
         Text(text)
             .font(.system(size: 10, weight: .bold, design: .monospaced))
             .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
             .background(color.opacity(0.12))
-            .overlay(Rectangle().stroke(color.opacity(0.35), lineWidth: 1))
-    }
-
-    private func signalWatchRow(_ tick: AssetTick) -> some View {
-        let prox = store.signalProximity(change24h: tick.change24hPercent)
-        let progress = min(1.2, max(0, prox.progress))
-        let barColor: Color = {
-            if prox.fired { return prox.side == "PUMP" ? p.gain : p.danger }
-            if progress >= 0.7 { return p.warn }
-            return p.cool.opacity(0.7)
-        }()
-
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(tick.symbol.padding(toLength: 5, withPad: " ", startingAt: 0))
-                    .font(IslandTheme.monoBold)
-                    .foregroundStyle(p.text)
-                Text(prox.fired ? "FIRE \(prox.side)" : "→ \(prox.side)")
-                    .font(IslandTheme.monoSmall)
-                    .foregroundStyle(barColor)
-                Spacer()
-                Text(tick.changeText)
-                    .font(IslandTheme.monoBold)
-                    .foregroundStyle(p.pnlColor(tick.change24hPercent))
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle()
-                        .fill(p.strokeDim.opacity(0.5))
-                        .frame(height: 4)
-                    Rectangle()
-                        .fill(barColor)
-                        .frame(width: geo.size.width * CGFloat(min(1, progress)), height: 4)
-                }
-            }
-            .frame(height: 4)
-        }
-        .padding(.vertical, 3)
+            .overlay(Rectangle().stroke(color.opacity(0.4), lineWidth: 1))
     }
 
     private func liveGlyph(_ kind: MarketSignal.Kind) -> String {
@@ -617,6 +1005,181 @@ private struct RadarSignalsPage: View {
         case .feeHigh: p.warn
         case .health: p.danger
         }
+    }
+
+    private func fmt1(_ value: Double) -> String { String(format: "%.1f", value) }
+    private func fmt0(_ value: Double) -> String { String(format: "%.0f", value) }
+}
+
+/// Superadmin broker bot — suggests setups; never executes trades.
+private struct RadarBrokerBotPage: View {
+    @Bindable var store: AppStore
+    private var p: ThemePalette { store.palette }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                botHero
+                liveContext
+                ForEach(store.brokerSuggestions) { tip in
+                    suggestionCard(tip)
+                }
+            }
+            .padding(12)
+        }
+    }
+
+    private var botHero: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(store.t("bot.heroTitle"))
+                    .font(IslandTheme.monoTitle)
+                    .foregroundStyle(p.warn)
+                Spacer()
+                Text("SUGGEST ONLY")
+                    .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(p.bg)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(p.warn)
+            }
+            Text(store.t("bot.heroBody"))
+                .font(IslandTheme.monoSmall)
+                .foregroundStyle(p.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(store.t("bot.heroRule"))
+                .font(IslandTheme.monoSmall)
+                .foregroundStyle(p.danger)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(
+            LinearGradient(
+                colors: [p.warn.opacity(0.16), p.panel.opacity(0.95)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .overlay(Rectangle().stroke(p.warn.opacity(0.45), lineWidth: 1))
+    }
+
+    private var liveContext: some View {
+        let dumps = store.snapshot.activeSignals.filter { $0.kind == .dump }.count
+        let pumps = store.snapshot.activeSignals.filter { $0.kind == .pump }.count
+        return HStack(spacing: 8) {
+            ctxChip("DUMP \(dumps)", dumps > 0 ? p.danger : p.muted)
+            ctxChip("PUMP \(pumps)", pumps > 0 ? p.gain : p.muted)
+            ctxChip("HEAT \(Int(store.deskHeatAvg * 100))%", store.deskHeatAvg >= 0.7 ? p.warn : p.cool)
+            ctxChip(
+                store.snapshot.openP2POrders.contains(where: \.isOpen) ? "P2P LIVE" : "NO P2P",
+                store.snapshot.openP2POrders.contains(where: \.isOpen) ? p.warn : p.muted
+            )
+        }
+    }
+
+    private func suggestionCard(_ tip: BrokerBot.Suggestion) -> some View {
+        let color = stanceColor(tip.stance)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(stanceLabel(tip.stance))
+                    .font(.system(size: 10, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(p.bg)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(color)
+                if let sym = tip.symbol {
+                    Text(sym)
+                        .font(IslandTheme.monoBold)
+                        .foregroundStyle(p.text)
+                }
+                Spacer()
+                Text("\(tip.confidence)%")
+                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(color)
+            }
+            Text(store.t(tip.titleKey))
+                .font(IslandTheme.monoBold)
+                .foregroundStyle(p.text)
+            Text(formatBody(tip))
+                .font(IslandTheme.monoSmall)
+                .foregroundStyle(p.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !tip.actions.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(tip.actions, id: \.rawValue) { action in
+                        Button(actionLabel(action)) {
+                            store.runBrokerAction(action, suggestion: tip)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(action == .dismiss ? p.muted : color)
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(color.opacity(0.08))
+        .overlay(Rectangle().stroke(color.opacity(0.4), lineWidth: 1))
+    }
+
+    private func stanceLabel(_ stance: BrokerBot.Stance) -> String {
+        switch stance {
+        case .hold: store.t("bot.stance.hold")
+        case .watchLong: store.t("bot.stance.watchLong")
+        case .watchShort: store.t("bot.stance.watchShort")
+        case .standAside: store.t("bot.stance.standAside")
+        case .ops: store.t("bot.stance.ops")
+        case .fee: store.t("bot.stance.fee")
+        }
+    }
+
+    private func stanceColor(_ stance: BrokerBot.Stance) -> Color {
+        switch stance {
+        case .hold: p.cool
+        case .watchLong: p.gain
+        case .watchShort: p.danger
+        case .standAside: p.warn
+        case .ops: p.accent
+        case .fee: p.warn
+        }
+    }
+
+    private func actionLabel(_ action: BrokerBot.Action) -> String {
+        switch action {
+        case .openTrade: store.t("signals.openBinance")
+        case .openP2P: store.t("signals.openP2P")
+        case .openEarn: store.t("signals.openEarn")
+        case .openSignals: store.t("bot.action.signals")
+        case .dismiss: store.t("bot.action.dismiss")
+        }
+    }
+
+    private func formatBody(_ tip: BrokerBot.Suggestion) -> String {
+        let template = store.t(tip.bodyKey)
+        guard !tip.bodyArgs.isEmpty else { return template }
+        var out = template
+        for arg in tip.bodyArgs {
+            if let range = out.range(of: "%d") {
+                out.replaceSubrange(range, with: String(describing: arg))
+            } else if let range = out.range(of: "%@") {
+                out.replaceSubrange(range, with: String(describing: arg))
+            } else {
+                break
+            }
+        }
+        return out
+    }
+
+    private func ctxChip(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.12))
+            .overlay(Rectangle().stroke(color.opacity(0.35), lineWidth: 1))
     }
 }
 

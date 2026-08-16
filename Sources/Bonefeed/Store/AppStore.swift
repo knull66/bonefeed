@@ -54,6 +54,7 @@ final class AppStore {
 
     func syncProStatus() {
         let wasPro = isProUnlocked
+        let wasVIP = isVIPUnlocked
         isProUnlocked = proStore.isPro
         isVIPUnlocked = proStore.isVIP
         if !isProUnlocked {
@@ -67,6 +68,34 @@ final class AppStore {
                 watchedAssets = Array(watchedAssets.prefix(ProLimits.freeWatchlistCap))
                 persistWatchedAssets()
             }
+        }
+        if wasVIP && !isVIPUnlocked {
+            enforceNonVIPThresholdFloor()
+        } else if !isVIPUnlocked {
+            enforceNonVIPThresholdFloor()
+        }
+    }
+
+    /// Keep Free/Pro from emulating VIP ±2.5 / fee 25.
+    private func enforceNonVIPThresholdFloor() {
+        guard !isVIPUnlocked else { return }
+        var next = thresholds
+        var changed = false
+        if next.pnlPumpPercent < 5 {
+            next.pnlPumpPercent = 5
+            changed = true
+        }
+        if next.pnlDropPercent > -5 {
+            next.pnlDropPercent = -5
+            changed = true
+        }
+        if next.feeHigh < 40 {
+            next.feeHigh = 40
+            changed = true
+        }
+        if changed {
+            thresholds = next
+            persistThresholds()
         }
     }
 
@@ -90,7 +119,17 @@ final class AppStore {
         proMessage = t("pro.restoring")
         let ok = await proStore.restore()
         syncProStatus()
-        proMessage = ok ? t("pro.restored") : (proStore.lastError ?? t("pro.restoreFailed"))
+        if ok {
+            if isVIP {
+                proMessage = t("pro.restoredVIP")
+            } else if isPro {
+                proMessage = t("pro.restored")
+            } else {
+                proMessage = t("pro.restoredNone")
+            }
+        } else {
+            proMessage = proStore.lastError ?? t("pro.restoreFailed")
+        }
         if ok { await refresh(force: true) }
     }
 
@@ -116,7 +155,7 @@ final class AppStore {
     }
 
     func openProSettings() {
-        openAppSettings()
+        openAppSettings(pane: .pro)
     }
 
     var proMessage: String = ""
@@ -137,6 +176,21 @@ final class AppStore {
 
     /// When true, next panel open skips boot splash (e.g. reopen guide).
     var skipNextSplash = false
+    /// Boot splash only once per app process (not every panel open).
+    var splashShownThisSession = false
+    /// Preferred Settings sidebar pane when opening the window.
+    var settingsPreferredPane: SettingsPane?
+    var settingsOpenToken: UInt = 0
+
+    /// Local VIP ping history (persisted).
+    var signalPingHistory: [SignalHistoryStore.Ping] = SignalHistoryStore.load()
+
+    /// Superadmin broker bot — suggestions only, never executes (Settings → Pro / VIP).
+    var superadminLabEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(superadminLabEnabled, forKey: Keys.superadminLab) }
+    }
+    /// Suggestion ids dismissed this session.
+    var brokerDismissedIds: Set<String> = []
 
     func showGuideFromSettings() {
         showOnboarding = true
@@ -206,6 +260,7 @@ final class AppStore {
     private var loopTask: Task<Void, Never>?
     private var knownSignatures = Set<String>()
     private var notifyCooldownUntil: [String: Date] = [:]
+    private var signalGate = SignalRefine.GateState()
     private var seenBinanceDepositIDs: Set<String>
     private var binancePrimed = false
     /// orderNumber → last seen orderStatus
@@ -235,6 +290,7 @@ final class AppStore {
         static let watchedAssets = "bonefeed.watchedAssets"
         static let onboardingDone = "bonefeed.onboardingDone"
         static let appLanguage = "bonefeed.appLanguage"
+        static let superadminLab = "bonefeed.superadminLab"
     }
 
     enum PanelTab: String, CaseIterable, Identifiable {
@@ -256,19 +312,127 @@ final class AppStore {
     }
 
     enum RadarSubTab: String, CaseIterable, Identifiable {
+        /// Ops-first order: overview → P2P → signals → lab
         case overview
-        case signals
         case p2p
+        case signals
+        case lab
 
         var id: String { rawValue }
+
+        var titleKey: String {
+            switch self {
+            case .overview: "tab.overview"
+            case .p2p: "tab.p2p"
+            case .signals: "tab.signals"
+            case .lab: "tab.bot"
+            }
+        }
 
         var title: String {
             switch self {
             case .overview: "OVERVIEW"
-            case .signals: "SIGNALS"
             case .p2p: "P2P"
+            case .signals: "SIGNALS"
+            case .lab: "BOT"
             }
         }
+    }
+
+    var visibleRadarSubTabs: [RadarSubTab] {
+        RadarSubTab.allCases.filter { tab in
+            if tab == .lab { return superadminLabEnabled }
+            return true
+        }
+    }
+
+    /// Live broker suggestions for admin BOT (never executes).
+    var brokerSuggestions: [BrokerBot.Suggestion] {
+        let ticks = snapshot.marketTicks
+        let dumps = ticks.filter {
+            signalProximity(change24h: $0.change24hPercent).fired
+                && signalProximity(change24h: $0.change24hPercent).side == "DUMP"
+        }.count
+        let pumps = ticks.filter {
+            signalProximity(change24h: $0.change24hPercent).fired
+                && signalProximity(change24h: $0.change24hPercent).side == "PUMP"
+        }.count
+        let hot = ticks.max { abs($0.change24hPercent) < abs($1.change24hPercent) }
+        let btc = ticks.first(where: { $0.symbol == "BTC" })?.change24hPercent
+            ?? snapshot.marketChange24hPercent
+        let regime = snapshot.activeSignals.contains { $0.id == "regime-dump" }
+            || snapshot.alerts.contains { $0.title.localizedCaseInsensitiveContains("market-wide")
+                || $0.title.localizedCaseInsensitiveContains("dump de mercado") }
+        let all = BrokerBot.suggestions(for: .init(
+            dumpCount: max(dumps, snapshot.activeSignals.filter { $0.kind == .dump && $0.id != "regime-dump" }.count),
+            pumpCount: max(pumps, snapshot.activeSignals.filter { $0.kind == .pump }.count),
+            feeHigh: snapshot.activeSignals.contains { $0.kind == .feeHigh }
+                || snapshot.fee.level == .high,
+            tickCount: max(ticks.count, 1),
+            hottestSymbol: hot?.symbol,
+            hottestChange: hot?.change24hPercent ?? 0,
+            hottestVolumeSpike: hot?.volumeSpikeRatio,
+            btcChange: btc,
+            heatAvg: deskHeatAvg,
+            quietHours: thresholds.isInQuietHours(),
+            vipTight: isVIP && thresholds.vipDeskEnabled,
+            openP2P: snapshot.openP2POrders.contains { $0.isOpen },
+            binanceConnected: snapshot.binanceConnected,
+            regimeDump: regime
+        ))
+        return all.filter { !brokerDismissedIds.contains($0.id) || $0.id == "mandate" }
+    }
+
+    func dismissBrokerSuggestion(_ id: String) {
+        guard id != "mandate" else { return }
+        brokerDismissedIds.insert(id)
+    }
+
+    func runBrokerAction(_ action: BrokerBot.Action, suggestion: BrokerBot.Suggestion) {
+        switch action {
+        case .openTrade:
+            openBinanceTrade(symbol: suggestion.symbol ?? "BTC")
+        case .openP2P:
+            openBinanceP2P()
+        case .openEarn:
+            openBinanceEarn()
+        case .openSignals:
+            openSignalsDesk()
+        case .dismiss:
+            dismissBrokerSuggestion(suggestion.id)
+        }
+    }
+
+    func setSuperadminLabEnabled(_ on: Bool) {
+        guard ProLimits.allowLocalUnlock else { return }
+        superadminLabEnabled = on
+        if !on, selectedRadarSubTab == .lab {
+            selectedRadarSubTab = .overview
+        }
+    }
+
+    func openLabDesk() {
+        guard superadminLabEnabled else { return }
+        selectedTab = .radar
+        selectedRadarSubTab = .lab
+        if !isPanelOpen {
+            onTogglePanel?()
+        }
+    }
+
+    /// Desk heat 0…1 for notch VIP ring (avg proximity of watchlist).
+    var deskHeatAvg: Double {
+        let ticks = snapshot.marketTicks
+        guard !ticks.isEmpty else { return 0 }
+        let sum = ticks.reduce(0.0) {
+            $0 + min(1, signalProximity(change24h: $1.change24hPercent).progress)
+        }
+        return sum / Double(ticks.count)
+    }
+
+    var deskHasFire: Bool {
+        snapshot.marketTicks.contains { signalProximity(change24h: $0.change24hPercent).fired }
+            || snapshot.activeSignals.contains { $0.kind == .pump || $0.kind == .dump }
     }
 
     /// Thresholds the VIP / Free desk is currently using for display.
@@ -295,7 +459,17 @@ final class AppStore {
         UserDefaults.standard.set(true, forKey: Keys.onboardingDone)
     }
 
-    func openAppSettings() {
+    /// Finish onboarding and jump straight to the signal desk.
+    func completeOnboardingToSignals() {
+        completeOnboarding()
+        openSignalsDesk()
+    }
+
+    func openAppSettings(pane: SettingsPane? = nil) {
+        if let pane {
+            settingsPreferredPane = pane
+            settingsOpenToken &+= 1
+        }
         SettingsWindowController.shared.show(store: self)
     }
 
@@ -318,6 +492,56 @@ final class AppStore {
         if !isPanelOpen {
             onTogglePanel?()
         }
+    }
+
+    /// Open Radar → SIGNALS desk (VIP board / upsell).
+    func openSignalsDesk() {
+        selectedTab = .radar
+        selectedRadarSubTab = .signals
+        if !isPanelOpen {
+            onTogglePanel?()
+        }
+    }
+
+    /// Watch-only deep link — opens Binance spot for a base symbol (e.g. BTC).
+    func openBinanceTrade(symbol: String = "BTC") {
+        var base = symbol.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.hasSuffix("USDT") { base = String(base.dropLast(4)) }
+        if base.isEmpty { base = "BTC" }
+        openExternal("https://www.binance.com/en/trade/\(base)_USDT")
+    }
+
+    func openBinanceP2P(fiat: String? = nil) {
+        let f = (fiat ?? thresholds.p2pFiat).trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if f.isEmpty {
+            openExternal("https://p2p.binance.com/en/trade/all-payments/USDT")
+        } else {
+            openExternal("https://p2p.binance.com/en/trade/all-payments/USDT?fiat=\(f)")
+        }
+    }
+
+    func openBinanceEarn() {
+        openExternal("https://www.binance.com/en/earn")
+    }
+
+    private func openExternal(_ string: String) {
+        if let url = URL(string: string) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Clear banner + collapse alert peek (mark as seen).
+    func dismissActiveAlert() {
+        bannerAlert = nil
+        pillPulse = false
+        alertNotchExpanded = false
+        alertNotchTask?.cancel()
+        syncNotchMode(hovering: notchPointerInside)
+        markAlertsRead()
+    }
+
+    func clearSignalPingHistory() {
+        SignalHistoryStore.clear(into: &signalPingHistory)
     }
 
     /// Keep a slim timer dock while an open P2P order exists.
@@ -401,6 +625,16 @@ final class AppStore {
             watchedAssets = RadarWatchlist.default
         }
         showOnboarding = !UserDefaults.standard.bool(forKey: Keys.onboardingDone)
+        if ProLimits.allowLocalUnlock {
+            // Default ON for operator builds until explicitly disabled.
+            if UserDefaults.standard.object(forKey: Keys.superadminLab) == nil {
+                superadminLabEnabled = true
+            } else {
+                superadminLabEnabled = UserDefaults.standard.bool(forKey: Keys.superadminLab)
+            }
+        } else {
+            superadminLabEnabled = false
+        }
         portfolioSamples = PortfolioHistoryStore.load()
         let resolvedLanguage: AppLanguage
         if let raw = UserDefaults.standard.string(forKey: Keys.appLanguage),
@@ -565,14 +799,19 @@ final class AppStore {
         }
 
         let signalThresholds = thresholds.forSignalDesk(isVIP: isVIP)
+        let vipDeskOn = isVIP && thresholds.vipDeskEnabled
         let result = await market.fetchRadar(
             wallets: watchedWallets,
             thresholds: signalThresholds,
             watchAssets: watchedAssets,
-            vipDesk: isVIP && thresholds.vipDeskEnabled
+            vipDesk: vipDeskOn
         )
-        var snap = result.snapshot
-        var extraAlerts = result.snapshot.alerts
+        var snap = await refineMarketSnapshot(
+            result.snapshot,
+            desk: signalThresholds,
+            vipDesk: vipDeskOn
+        )
+        var extraAlerts = snap.alerts
         var newDeposits = result.newDeposits
 
         if isPro, let credentials = loadCredentials() {
@@ -704,6 +943,9 @@ final class AppStore {
                         ? (visible.isEmpty && simulatedP2POrders.isEmpty ? "No recent P2P orders" : "No open orders")
                         : "\(openCount) open"
                     extraAlerts.append(contentsOf: processP2POrders(orders))
+                    if let rateAlerts = await fetchP2PRateAlertsIfEnabled(credentials: credentials) {
+                        extraAlerts.append(contentsOf: rateAlerts)
+                    }
                 case .failure(let message):
                     snap.p2pOrders = mergedP2PDisplayOrders(apiOpen: [], apiClosed: [])
                     snap.p2pStatus = simulatedP2POrders.isEmpty ? message : "\(snap.openP2POrders.count) open · demo"
@@ -825,19 +1067,22 @@ final class AppStore {
 
     func updateFeeHigh(_ value: Double) {
         var next = thresholds
-        next.feeHigh = value
+        // VIP desk owns sub-40 fee pings; Free/Pro floor stays looser.
+        next.feeHigh = isVIP ? value : max(40, value)
         updateThresholds(next)
     }
 
     func updatePnLDrop(_ value: Double) {
         var next = thresholds
-        next.pnlDropPercent = value
+        // Free/Pro cannot emulate VIP tight dump (−2.5); floor at −5.
+        next.pnlDropPercent = isVIP ? value : min(-5, value)
         updateThresholds(next)
     }
 
     func updatePnLPump(_ value: Double) {
         var next = thresholds
-        next.pnlPumpPercent = value
+        // Free/Pro cannot emulate VIP tight pump (+2.5); floor at +5.
+        next.pnlPumpPercent = isVIP ? value : max(5, value)
         updateThresholds(next)
     }
 
@@ -911,6 +1156,44 @@ final class AppStore {
     func setVIPDeskEnabled(_ enabled: Bool) {
         var next = thresholds
         next.vipDeskEnabled = enabled
+        updateThresholds(next)
+    }
+
+    func setAntiFlapEnabled(_ enabled: Bool) {
+        var next = thresholds
+        next.antiFlapEnabled = enabled
+        if !enabled { signalGate = SignalRefine.GateState() }
+        updateThresholds(next)
+    }
+
+    func setVolumeFilterEnabled(_ enabled: Bool) {
+        var next = thresholds
+        next.volumeFilterEnabled = enabled
+        updateThresholds(next)
+    }
+
+    func setRespectSystemFocus(_ enabled: Bool) {
+        var next = thresholds
+        next.respectSystemFocus = enabled
+        updateThresholds(next)
+    }
+
+    func setP2PRateAlertsEnabled(_ enabled: Bool) {
+        guard isPro else { return }
+        var next = thresholds
+        next.p2pRateAlertsEnabled = enabled
+        updateThresholds(next)
+    }
+
+    func updateP2PRateBuyMax(_ value: Double) {
+        var next = thresholds
+        next.p2pRateBuyMax = max(0, value)
+        updateThresholds(next)
+    }
+
+    func updateP2PRateSellMin(_ value: Double) {
+        var next = thresholds
+        next.p2pRateSellMin = max(0, value)
         updateThresholds(next)
     }
 
@@ -1518,6 +1801,148 @@ final class AppStore {
         }
     }
 
+    /// Anti-flap + volume filter + regime digest for market pnl alerts.
+    private func refineMarketSnapshot(
+        _ snap: MarketSnapshot,
+        desk: AlertThresholds,
+        vipDesk: Bool
+    ) async -> MarketSnapshot {
+        var snap = snap
+        var ticks = snap.marketTicks
+        if desk.volumeFilterEnabled {
+            ticks = await market.enrichVolumeSpikes(
+                ticks,
+                dumpThreshold: desk.pnlDropPercent,
+                pumpThreshold: desk.pnlPumpPercent
+            )
+        }
+        snap.marketTicks = ticks
+
+        let vipTag = vipDesk ? "VIP · " : ""
+        let nonPnl = snap.alerts.filter { $0.kind != .pnl }
+        var pnlAlerts: [IslandAlert] = []
+
+        if desk.pnlAlertsEnabled {
+            for tick in ticks where desk.allowsSignal(for: tick.symbol) {
+                guard let verdict = SignalRefine.allowFire(
+                    symbol: tick.symbol,
+                    change24h: tick.change24hPercent,
+                    dumpThreshold: desk.pnlDropPercent,
+                    pumpThreshold: desk.pnlPumpPercent,
+                    antiFlap: desk.antiFlapEnabled,
+                    state: &signalGate
+                ), verdict.fire else { continue }
+
+                if desk.volumeFilterEnabled {
+                    guard let ratio = tick.volumeSpikeRatio,
+                          ratio >= desk.volumeSpikeMultiplier
+                    else { continue }
+                }
+
+                if verdict.side == "DUMP" {
+                    var detail = String(format: "%+.2f%% (≤ %.0f%%)", tick.change24hPercent, desk.pnlDropPercent)
+                    if let vol = tick.volumeSpikeText { detail += " · \(vol)" }
+                    pnlAlerts.append(
+                        IslandAlert(
+                            id: UUID(),
+                            kind: .pnl,
+                            title: "\(vipTag)\(String(format: L10n.t("signal.signalDump"), tick.symbol))",
+                            detail: detail,
+                            createdAt: .now,
+                            isRead: false
+                        )
+                    )
+                } else {
+                    var detail = String(format: "%+.2f%% (≥ +%.0f%%)", tick.change24hPercent, desk.pnlPumpPercent)
+                    if let vol = tick.volumeSpikeText { detail += " · \(vol)" }
+                    pnlAlerts.append(
+                        IslandAlert(
+                            id: UUID(),
+                            kind: .pnl,
+                            title: "\(vipTag)\(String(format: L10n.t("signal.signalPump"), tick.symbol))",
+                            detail: detail,
+                            createdAt: .now,
+                            isRead: false
+                        )
+                    )
+                }
+            }
+        }
+
+        let collapsed = SignalRefine.collapseRegime(
+            alerts: pnlAlerts,
+            signals: snap.activeSignals,
+            tickCount: ticks.count,
+            vipTag: vipTag
+        )
+        snap.alerts = nonPnl + collapsed.alerts
+        snap.activeSignals = collapsed.signals
+        return snap
+    }
+
+    private func fetchP2PRateAlertsIfEnabled(credentials: BinanceCredentials) async -> [IslandAlert]? {
+        guard isPro, thresholds.p2pRateAlertsEnabled else { return nil }
+        let fiat = thresholds.p2pFiat.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard !fiat.isEmpty else { return nil }
+        let asset = thresholds.p2pRateAsset.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let useAsset = asset.isEmpty ? "USDT" : asset
+        var out: [IslandAlert] = []
+
+        if thresholds.p2pRateBuyMax > 0,
+           let best = await binance.fetchP2PBestAdPrice(
+            credentials: credentials,
+            asset: useAsset,
+            fiat: fiat,
+            tradeType: "BUY"
+           ),
+           best >= thresholds.p2pRateBuyMax {
+            out.append(
+                IslandAlert(
+                    id: UUID(),
+                    kind: .p2p,
+                    title: L10n.t("msg.p2pRateBuy"),
+                    detail: String(
+                        format: L10n.t("msg.p2pRateBuyDetail"),
+                        useAsset,
+                        fiat,
+                        best,
+                        thresholds.p2pRateBuyMax
+                    ),
+                    createdAt: .now,
+                    isRead: false
+                )
+            )
+        }
+
+        if thresholds.p2pRateSellMin > 0,
+           let best = await binance.fetchP2PBestAdPrice(
+            credentials: credentials,
+            asset: useAsset,
+            fiat: fiat,
+            tradeType: "SELL"
+           ),
+           best <= thresholds.p2pRateSellMin {
+            out.append(
+                IslandAlert(
+                    id: UUID(),
+                    kind: .p2p,
+                    title: L10n.t("msg.p2pRateSell"),
+                    detail: String(
+                        format: L10n.t("msg.p2pRateSellDetail"),
+                        useAsset,
+                        fiat,
+                        best,
+                        thresholds.p2pRateSellMin
+                    ),
+                    createdAt: .now,
+                    isRead: false
+                )
+            )
+        }
+
+        return out.isEmpty ? nil : out
+    }
+
     private func apply(snapshot next: MarketSnapshot, newDeposits: [DepositEvent]) {
         var next = next
         if !newDeposits.isEmpty {
@@ -1539,6 +1964,7 @@ final class AppStore {
         }
 
         pruneTransientSignatures(currentAlerts: next.alerts)
+        // Ops first: deposit / P2P before market noise.
         fresh.sort { alertPriority($0) < alertPriority($1) }
 
         if !fresh.isEmpty {
@@ -1546,14 +1972,29 @@ final class AppStore {
             if alertLog.count > 40 {
                 alertLog = Array(alertLog.prefix(40))
             }
-            present(fresh[0])
+            for alert in fresh where alert.kind == .pnl || alert.kind == .gas || alert.kind == .health {
+                SignalHistoryStore.append(
+                    kind: alert.kind.rawValue,
+                    title: alert.title,
+                    detail: alert.detail,
+                    signature: alertSignature(alert),
+                    into: &signalPingHistory
+                )
+            }
+            let head = fresh[0]
+            present(head)
             if soundEnabled {
-                SoundPlayer.play(for: fresh[0].kind)
+                SoundPlayer.play(for: head.kind)
             }
             if notificationsEnabled {
                 Task {
-                    for alert in fresh.prefix(3) where shouldNotify(alert) {
+                    // Prefer a single ops alert; for market, notify up to 2 after filters.
+                    let notifyBudget = head.kind == .deposit || head.kind == .p2p ? 2 : 2
+                    var sent = 0
+                    for alert in fresh where shouldNotify(alert) {
                         await AppNotifier.notify(alert: alert, sound: false)
+                        sent += 1
+                        if sent >= notifyBudget { break }
                     }
                 }
             }
@@ -1607,13 +2048,14 @@ final class AppStore {
         }
 
         let quiet = thresholds.isInQuietHours()
+        let focused = thresholds.respectSystemFocus && FocusGate.isFocused()
         switch alert.kind {
         case .deposit, .p2p:
             break // always (subject to cooldown) — critical ops
         case .earn:
-            if quiet { return false }
+            if quiet || focused { return false }
         case .gas, .pnl, .health:
-            if quiet { return false }
+            if quiet || focused { return false }
         case .whale:
             return false
         }

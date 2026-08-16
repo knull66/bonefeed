@@ -8,20 +8,52 @@ struct BonefeedApp: App {
     var body: some Scene {
         // Backup menu (notch is the primary UI). Keep style `.menu` — not anchored window.
         MenuBarExtra {
-            Button(appDelegate.store.isPanelOpen ? "Hide Panel" : "Show Panel") {
-                appDelegate.store.togglePanel()
+            let store = appDelegate.store
+            Section(store.t("menu.section.panel")) {
+                Button(store.isPanelOpen ? store.t("menu.hidePanel") : store.t("menu.showPanel")) {
+                    store.togglePanel()
+                }
+                .keyboardShortcut("b", modifiers: [.command, .shift])
+                Button(store.isPanelPinned ? store.t("panel.unpin") : store.t("panel.pin")) {
+                    store.togglePanelPin()
+                }
             }
-            Button(appDelegate.store.isPanelPinned ? "Unpin Panel" : "Pin Panel") {
-                appDelegate.store.togglePanelPin()
+            Section(store.t("menu.section.radar")) {
+                Button(store.t("menu.openOverview")) {
+                    store.selectedTab = .radar
+                    store.selectedRadarSubTab = .overview
+                    if !store.isPanelOpen { store.togglePanel() }
+                }
+                Button(store.t("menu.openP2P")) {
+                    store.openP2PStatus()
+                }
+                Button(store.t("menu.openSignals")) {
+                    store.openSignalsDesk()
+                }
+                if store.superadminLabEnabled {
+                    Button(store.t("menu.openBot")) {
+                        store.openLabDesk()
+                    }
+                }
+            }
+            Section(store.t("menu.section.quick")) {
+                Button(store.t("signals.openBinance")) {
+                    store.openBinanceTrade()
+                }
+                Button(store.t("signals.openP2P")) {
+                    store.openBinanceP2P()
+                }
+                Button(store.t("signals.openEarn")) {
+                    store.openBinanceEarn()
+                }
             }
             Divider()
-            Button("Settings…") {
-                appDelegate.store.openAppSettings()
+            Button(store.t("menu.settings")) {
+                store.openAppSettings()
             }
             .keyboardShortcut(",", modifiers: .command)
-            Divider()
             Button(Brand.quitTitle) {
-                appDelegate.store.quitApp()
+                store.quitApp()
             }
             .keyboardShortcut("q", modifiers: .command)
         } label: {

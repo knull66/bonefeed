@@ -4,6 +4,7 @@ import SwiftUI
 /// Boot splash for the menu-bar panel. Fixed size only — never animate the window frame.
 struct IslandSplashView: View {
     @Environment(\.chainPalette) private var p
+    var bootLabel: String = L10n.t("panel.boot")
     var onFinished: () -> Void
 
     @State private var logoVisible = false
@@ -60,7 +61,7 @@ struct IslandSplashView: View {
                         .font(IslandTheme.monoTitle)
                         .foregroundStyle(p.accent)
                         .tracking(3)
-                    Text("BOOT SEQUENCE")
+                    Text(bootLabel)
                         .font(IslandTheme.monoSmall)
                         .foregroundStyle(p.cool.opacity(0.85))
                         .tracking(0.5)

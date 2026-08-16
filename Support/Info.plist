@@ -26,5 +26,7 @@
 	<true/>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Bonefeed te avisa de depósitos Binance, movimientos Earn y unlocks próximos.</string>
+	<key>NSFocusStatusUsageDescription</key>
+	<string>Bonefeed checks Focus / Do Not Disturb so market noise stays quiet while you are in a call or sharing your screen. Deposit and P2P alerts still notify.</string>
 </dict>
 </plist>
