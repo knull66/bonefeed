@@ -12,7 +12,7 @@ window.BONEFEED_COMMERCE = {
 
   // --- Stripe Payment Links (Dashboard → Payment links) ---
   stripeProUrl: "https://buy.stripe.com/test_6oUaEXfsKe9u6KPaKt4sE00",
-  stripeVipUrl: "", // paste VIP Payment Link when ready
+  stripeVipUrl: "https://buy.stripe.com/test_4gM4gz3K24yUb15bOx4sE01",
   // Only needed if you use the Netlify function instead of Payment Links:
   // stripeCheckoutApi: "/.netlify/functions/create-checkout",
   stripePublishableKey: "", // optional pk_test_… (not required for Payment Links)
