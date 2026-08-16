@@ -7,3 +7,6 @@ DerivedData/
 *.app
 .env
 .env.local
+node_modules/
+Web/node_modules/
+Web/package-lock.json

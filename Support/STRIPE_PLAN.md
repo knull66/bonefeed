@@ -106,6 +106,7 @@ Files:
 - `Web/commerce-config.js` — `provider: "stripe"` + Payment Link URLs  
 - `Web/commerce.js` — already opens `checkoutUrl`; extended for per-tier Stripe links  
 - `Web/netlify/functions/create-checkout.js` — optional dynamic Checkout (uses `STRIPE_SECRET_KEY` env)  
+- `Web/netlify/functions/package.json` — Stripe SDK only for that function (not published as static site files)  
 - Netlify env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `URL`
 
 ### Dashboard (test mode)

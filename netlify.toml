@@ -1,8 +1,12 @@
+# Static landing only — ignore Swift Package.swift at repo root.
+# Checkout uses Stripe Payment Links (no site-level npm / no secret keys in git).
 [build]
   base = "Web"
   publish = "."
-  command = "npm install --omit=dev"
+  command = "true"
 
+# Optional create-checkout function: deps live in netlify/functions/package.json
+# and are bundled with the function — never published as static files.
 [functions]
   directory = "netlify/functions"
 
