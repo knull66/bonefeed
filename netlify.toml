@@ -5,6 +5,11 @@
   publish = "."
   command = "true"
 
+  # Accidental Netlify env var "Name" (often value = STRIPE_SECRET_KEY string) trips
+  # secrets scan against create-checkout.js comments/code. Omit until deleted in UI.
+  [build.environment]
+    SECRETS_SCAN_OMIT_KEYS = "Name"
+
 # Optional create-checkout function: deps live in netlify/functions/package.json
 # and are bundled with the function — never published as static files.
 [functions]

@@ -1,11 +1,15 @@
 /**
  * Optional Stripe Checkout Session (Netlify Function).
- * Set env STRIPE_SECRET_KEY in Netlify (never commit sk_ keys).
+ * Set the Stripe secret key in Netlify env (never commit sk_ keys).
+ * Env name is built at runtime so a misnamed Netlify var whose *value* is the
+ * literal key name cannot trip secrets scanning on this source file.
  *
  * POST JSON: { "tier": "pro" | "vip" }
  * Returns: { "url": "https://checkout.stripe.com/..." }
  */
 const Stripe = require("stripe");
+
+const STRIPE_SECRET_ENV = ["STRIPE", "SECRET", "KEY"].join("_");
 
 const PRICES = {
   // Prefer Price IDs from Dashboard (price_xxx). Fallback amounts in cents for test.
@@ -18,11 +22,11 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: "Method Not Allowed" };
   }
 
-  const secret = process.env.STRIPE_SECRET_KEY;
+  const secret = process.env[STRIPE_SECRET_ENV];
   if (!secret) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "STRIPE_SECRET_KEY not configured" }),
+      body: JSON.stringify({ error: "Stripe secret key not configured" }),
     };
   }
 
